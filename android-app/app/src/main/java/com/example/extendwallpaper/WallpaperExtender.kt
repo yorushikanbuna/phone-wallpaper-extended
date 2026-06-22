@@ -34,16 +34,13 @@ object WallpaperExtender {
             fillColor2 = fillColor
         }
 
-        // 2. Fill background (two-colour for center mode)
+        // 2. Fill background (two-colour for center mode when colors differ)
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
         bg.eraseColor(fillColor)
-        if (position == "center" && fillColor2 != fillColor) {
-            // Bottom half of image area + bottom extension bar use fillColor2
+        if (position == "center" && !sameColor) {
             val botPaint = Paint(); botPaint.color = fillColor2
             val splitY = topOffset + h / 2
             Canvas(bg).drawRect(0f, splitY.toFloat(), w.toFloat(), targetH.toFloat(), botPaint)
-        } else if (position == "center") {
-            Canvas(bg).drawRect(0f, (topOffset + h).toFloat(), w.toFloat(), targetH.toFloat(), Paint().apply { color = fillColor2 })
         }
 
         // 3. Exponential alpha gradient
