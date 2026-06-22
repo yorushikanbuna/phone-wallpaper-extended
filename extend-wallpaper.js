@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 const sharp = require('sharp');
 
-// ── Defaults (adaptive — scale with extension amount) ──────
-const FILL_BLUR  = 80;   // sigma for fill-colour blur
-const BLEND_BLUR = 50;   // sigma for transition-zone blur
+// ── Defaults ──────────────────────────────────────────────
+const BLEND_BLUR = 120;  // sigma for blur (extreme at seam → near-uniform row)
 const EXP_K      = 5;    // exponential decay steepness
 
 // ── Core ───────────────────────────────────────────────────
@@ -49,9 +48,9 @@ async function extendImage(inputPath, outputPath, opts = {}) {
     return { width, height, targetH, extendPx: 0, fillColor: null };
   }
 
-  // Adaptive zones: scale with extension amount so short/long extensions look natural
-  const solidZone = opts.solidZone ?? Math.max(30, Math.round(extendPx * 0.08));
-  const blendZone = opts.blendZone ?? Math.max(80, Math.round(extendPx * 0.35));
+  // Adaptive zones — solidZone defaults to 0 (pure blur blend, no opaque overlay)
+  const solidZone = opts.solidZone ?? 0;
+  const blendZone = opts.blendZone ?? Math.round(Math.min(extendPx, height) * 0.33);
   const fillBlur  = opts.fillBlur  ?? FILL_BLUR;
   const blendBlur = opts.blendBlur ?? BLEND_BLUR;
   const expK      = opts.expK      ?? EXP_K;
@@ -71,18 +70,31 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   }).png().toBuffer();
 
   const topBlurred = await sharp(topPNG)
-    .blur(fillBlur)
+    .blur(blendBlur)  // same sigma as seam blur → colours match
     .removeAlpha()
     .raw()
     .toBuffer();
 
-  const fR = topBlurred[0], fG = topBlurred[1], fB = topBlurred[2];
+  // ── 2. Extension from extreme-blurred first row ─────────
+  //    Repeat the blurred top row for the entire extension,
+  //    guaranteeing pixel-level match at the seam.
+  const extBuf = Buffer.alloc(extendPx * width * 3);
+  for (let y = 0; y < extendPx; y++) {
+    for (let x = 0; x < width; x++) {
+      const si = x * 3;
+      const di = (y * width + x) * 3;
+      extBuf[di]     = topBlurred[si];
+      extBuf[di + 1] = topBlurred[si + 1];
+      extBuf[di + 2] = topBlurred[si + 2];
+    }
+  }
 
-  // ── 2. Solid extension ──────────────────────────────────
-  const extSolid = await sharp({
-    create: { width, height: extendPx, channels: 4,
-      background: { r: fR, g: fG, b: fB, alpha: 1 } },
-  }).png().toBuffer();
+  const extSolid = await sharp(extBuf, {
+    raw: { width, height: extendPx, channels: 3 },
+  }).ensureAlpha().png().toBuffer();
+
+  // Fill colour for logging
+  const fR = topBlurred[0], fG = topBlurred[1], fB = topBlurred[2];
 
   // ── 3. Blend overlay for original's top N rows ──────────
   const topHeavyBlur = await sharp(topPNG)
@@ -97,28 +109,19 @@ async function extendImage(inputPath, outputPath, opts = {}) {
       const si = (y * width + x) * 3;
       const di = (y * width + x) * 4;
 
-      if (y < solidZone) {
-        // Pure fill colour — invisible seam
-        overlayBuf[di]     = fR;
-        overlayBuf[di + 1] = fG;
-        overlayBuf[di + 2] = fB;
-        overlayBuf[di + 3] = 255;
-        continue;
-      }
-
-      // Exponential-decay blend: solid → blurred → original
-      const t = (y - solidZone) / blendZone;
-      const sW = Math.exp(-expK * t);         // solid: steep exponential drop
-      const oW = t * t;                        // original: quadratic rise at tail
-      const bW = Math.max(0, 1 - sW - oW);     // blur: fills the mid-range
-      const total = sW + bW + oW;
+      // Exponential-decay blur blend: extreme blur → sharp original
+      // y=0 (seam): 100% extreme blur → rows nearly uniform, matches extension
+      // y=blendZone: 100% sharp original
+      const t = y / blendZone;
+      const bW = Math.exp(-expK * t);          // extreme blur: dominates at seam, fast drop
+      const oW = 1 - bW;                       // original: rises as blur fades
 
       const bR = topHeavyBlur[si], bG = topHeavyBlur[si + 1], bB = topHeavyBlur[si + 2];
       const oR = topRaw[si],       oG = topRaw[si + 1],       oB = topRaw[si + 2];
 
-      overlayBuf[di]     = clamp(Math.round((fR * sW + bR * bW + oR * oW) / total));
-      overlayBuf[di + 1] = clamp(Math.round((fG * sW + bG * bW + oG * oW) / total));
-      overlayBuf[di + 2] = clamp(Math.round((fB * sW + bB * bW + oB * oW) / total));
+      overlayBuf[di]     = clamp(Math.round(bR * bW + oR * oW));
+      overlayBuf[di + 1] = clamp(Math.round(bG * bW + oG * oW));
+      overlayBuf[di + 2] = clamp(Math.round(bB * bW + oB * oW));
       overlayBuf[di + 3] = 255;
     }
   }
