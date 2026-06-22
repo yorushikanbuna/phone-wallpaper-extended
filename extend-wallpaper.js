@@ -75,24 +75,11 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const mid = Math.floor(allR.length / 2);
   const fR = allR[mid], fG = allG[mid], fB = allB[mid];
 
-  // ── 2. Per-column fill background — matches horizontal brightness profile ──
-  const fillBgBuf = Buffer.alloc(targetH * width * 3);
-  const fillColBuf = fillBlurred.slice(
-    (Math.floor(FILL_SAMPLE_H / 2) * width) * 3,
-    (Math.floor(FILL_SAMPLE_H / 2) * width + width) * 3
-  );
-  for (let y = 0; y < targetH; y++) {
-    for (let x = 0; x < width; x++) {
-      const si = x * 3;
-      const di = (y * width + x) * 3;
-      fillBgBuf[di] = fillColBuf[si];
-      fillBgBuf[di + 1] = fillColBuf[si + 1];
-      fillBgBuf[di + 2] = fillColBuf[si + 2];
-    }
-  }
-  const fillBg = await sharp(fillBgBuf, {
-    raw: { width, height: targetH, channels: 3 },
-  }).ensureAlpha().png().toBuffer();
+  // ── 2. Pure solid fill background ──
+  const fillBg = await sharp({
+    create: { width, height: targetH, channels: 4,
+      background: { r: fR, g: fG, b: fB, alpha: 1 } },
+  }).png().toBuffer();
 
   // ── 3. Original with exponential transparency gradient ──
   const origWithAlphaBuf = Buffer.alloc(height * width * 4);
@@ -102,7 +89,10 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   for (let y = 0; y < height; y++) {
     const t = Math.min(y / modifyZone, 1);
     const curve = (Math.exp(-expK * (1 - t)) - Math.exp(-expK)) / denom;
-    const alpha = Math.round(255 * curve);
+    // Smooth landing: last 15% blends curve into 1.0 to avoid sharp cutoff
+    const tail = Math.max(0, Math.min(1, (t - 0.85) / 0.15));
+    const tailEased = tail * tail * (3 - 2 * tail); // smoothstep
+    const alpha = Math.round(255 * (curve * (1 - tailEased) + 1 * tailEased));
 
     for (let x = 0; x < width; x++) {
       const si = (y * width + x) * 3;

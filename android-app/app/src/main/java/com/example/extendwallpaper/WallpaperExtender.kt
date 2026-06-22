@@ -24,18 +24,12 @@ object WallpaperExtender {
         val sampleH = min((zone * 0.6f).roundToInt(), h - sampleTop)
         val top = Bitmap.createBitmap(source, 0, sampleTop, w, sampleH)
         val blurred = blur(top, 40f)
-        // Per-column fill from blurred middle row (matches horizontal brightness profile)
-        val midRow = sampleH / 2
-        val fillPixels = IntArray(w); blurred.getPixels(fillPixels, 0, w, 0, midRow, w, 1)
+        val fillColor = medianColor(blurred)
         top.recycle(); blurred.recycle()
 
-        // 2. Per-column fill background
+        // 2. Pure solid fill background
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
-        val bgPixels = IntArray(w * targetH)
-        for (y in 0 until targetH) {
-            System.arraycopy(fillPixels, 0, bgPixels, y * w, w)
-        }
-        bg.setPixels(bgPixels, 0, w, 0, 0, w, targetH)
+        bg.eraseColor(fillColor)
 
         // 3. Original with power-curve alpha gradient
         val pixels = IntArray(w * h)
@@ -46,7 +40,11 @@ object WallpaperExtender {
         val alphaDenom = 1.0 - exp(-EXP_K)
         fun alphaFromTop(dist: Int, range: Int): Int {
             val t = (dist.toFloat() / range).coerceAtMost(1f)
-            return (255 * ((exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / alphaDenom)).roundToInt().coerceIn(0, 255)
+            val curve = (exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / alphaDenom
+            // Smooth landing: last 15% blends into 1.0
+            val tail = maxOf(0f, minOf(1f, (t - 0.85f) / 0.15f))
+            val tailEased = tail * tail * (3 - 2 * tail)
+            return (255 * (curve * (1 - tailEased) + tailEased)).roundToInt().coerceIn(0, 255)
         }
 
         for (y in 0 until h) {
