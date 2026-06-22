@@ -37,8 +37,10 @@ object WallpaperExtender {
         // 2. Fill background (two-colour for center mode when colors differ)
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
         bg.eraseColor(fillColor)
-        if (position == "center" && !sameColor) {
-            val botPaint = Paint(); botPaint.color = fillColor2
+        // Always draw bottom half with presetFill2 when distinct from top
+        val useBot = position == "center" && !sameColor && presetFill2 != presetFill
+        if (useBot) {
+            val botPaint = Paint(); botPaint.color = presetFill2
             val splitY = topOffset + h / 2
             Canvas(bg).drawRect(0f, splitY.toFloat(), w.toFloat(), targetH.toFloat(), botPaint)
         }

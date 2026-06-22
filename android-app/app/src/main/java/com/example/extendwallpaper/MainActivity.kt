@@ -177,7 +177,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 val sameColor = binding.cbSameColor.isChecked
                 val fc2 = if (sameColor) fillColor else fillColor2
-                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fc2)
+                // Debug: force different colours to verify pass-through
+                val dbgTop = fillColor
+                val dbgBot = if (sameColor) fillColor else 0xFF00FF00.toInt() // pure green
+                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, dbgTop, dbgBot)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()
