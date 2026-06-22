@@ -38,7 +38,7 @@ object WallpaperExtender {
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
         bg.eraseColor(fillColor)
         if (position == "center" && !sameColor) {
-            val botPaint = Paint(); botPaint.color = fillColor2
+            val botPaint = Paint(); botPaint.color = Color.RED // debug: force red to verify drawing
             val splitY = topOffset + h / 2
             Canvas(bg).drawRect(0f, splitY.toFloat(), w.toFloat(), targetH.toFloat(), botPaint)
         }

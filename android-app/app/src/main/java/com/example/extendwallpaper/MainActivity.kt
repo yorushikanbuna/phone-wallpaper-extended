@@ -179,9 +179,8 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()
-                    val same = binding.cbSameColor.isChecked
                     binding.tvResult.text =
-                        "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px) same=$same top=#${Integer.toHexString(fillColor).takeLast(6)} bot=#${Integer.toHexString(fillColor2).takeLast(6)}"
+                        "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px) same=${binding.cbSameColor.isChecked}"
                     binding.btnGenerate.isEnabled = true
                     binding.btnGenerate.alpha = 1f
                     binding.progressBar.visibility = android.view.View.GONE
