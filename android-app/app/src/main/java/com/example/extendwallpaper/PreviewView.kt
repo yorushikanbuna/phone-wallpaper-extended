@@ -61,7 +61,7 @@ class PreviewView @JvmOverloads constructor(
         canvas.drawRect(0f, 0f, vw, extH, paint)
 
         // 2. Original image
-        val dstRect = Rect(0f, extH + gap, vw, extH + gap + imgH)
+        val dstRect = Rect(0, (extH + gap).roundToInt(), vw.roundToInt(), (extH + gap + imgH).roundToInt())
         canvas.drawBitmap(src, null, dstRect, paint)
 
         // 3. Gradient overlay
