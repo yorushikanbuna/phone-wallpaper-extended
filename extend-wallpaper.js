@@ -78,42 +78,22 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const mid = Math.floor(allR.length / 2);
   let fR = allR[mid], fG = allG[mid], fB = allB[mid];
 
-  // ── Brightness match: per-boundary fill colour ──
-  const rgbToHsl = (r,g,b) => {
-    r/=255;g/=255;b/=255; const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
-    let h=0,s=0,l=(mx+mn)/2;
-    if(d!==0){s=l>.5?d/(2-mx-mn):d/(mx+mn);
-      h=mx===r?((g-b)/d+(g<b?6:0))/6:mx===g?((b-r)/d+2)/6:((r-g)/d+4)/6;}
-    return[h,s,l];
-  };
-  const hslToRgb = (h,s,l) => {
-    const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<.5)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
-    if(s===0)return[Math.round(l*255),Math.round(l*255),Math.round(l*255)];
-    const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q;
-    return[Math.round(hue2rgb(p,q,h+1/3)*255),Math.round(hue2rgb(p,q,h)*255),Math.round(hue2rgb(p,q,h-1/3)*255)];
-  };
-  const matchLuminance = async (y) => {
-    const top = Math.max(0, y - 10);
-    const h = Math.min(20, height - top);
-    if (h <= 0) return [fR,fG,fB];
-    const raw = await sharp(inputPath)
-      .extract({left:0,top,width,height:h}).removeAlpha().raw().toBuffer();
-    let sR=0,sG=0,sB=0;
-    for(let i=0;i<raw.length;i+=3){sR+=raw[i];sG+=raw[i+1];sB+=raw[i+2];}
-    const n=raw.length/3;
-    const [,,bl] = rgbToHsl(Math.round(sR/n), Math.round(sG/n), Math.round(sB/n));
-    const [fh,fs] = rgbToHsl(fR,fG,fB);
-    return hslToRgb(fh, fs, bl);
-  };
-
-  let fR2 = fR, fG2 = fG, fB2 = fB; // second fill for center/bottom
+  // ── Second fill colour for center/bottom modes ──
+  let fR2 = fR, fG2 = fG, fB2 = fB;
   if (position === 'center') {
-    [fR,fG,fB] = await matchLuminance(Math.round(modifyZone / 2));
-    [fR2,fG2,fB2] = await matchLuminance(height - Math.round(modifyZone / 2));
-  } else if (position === 'bottom') {
-    [fR,fG,fB] = await matchLuminance(height - modifyZone);
-  } else {
-    [fR,fG,fB] = await matchLuminance(modifyZone);
+    const halfZone = Math.floor(modifyZone / 2);
+    const bTop = Math.max(0, height - halfZone - 10);
+    const bH = Math.min(20, height - bTop);
+    if (bH > 0) {
+      const botRaw = await sharp(inputPath)
+        .extract({left:0,top:bTop,width,height:bH}).removeAlpha().raw().toBuffer();
+      const botPNG = await sharp(botRaw,{raw:{width,height:bH,channels:3}}).png().toBuffer();
+      const botBlur = await sharp(botPNG).blur(Math.min(fillBlur, bH*2)).removeAlpha().raw().toBuffer();
+      const all2=[],mid2=Math.floor(botBlur.length/6);
+      for(let i=0;i<botBlur.length;i+=3)all2.push(botBlur[i]);all2.sort((a,b)=>a-b);fR2=all2[mid2];
+      all2.length=0;for(let i=0;i<botBlur.length;i+=3)all2.push(botBlur[i+1]);all2.sort((a,b)=>a-b);fG2=all2[mid2];
+      all2.length=0;for(let i=0;i<botBlur.length;i+=3)all2.push(botBlur[i+2]);all2.sort((a,b)=>a-b);fB2=all2[mid2];
+    }
   }
 
   // ── 2. Fill background (with two-colour support for center) ──
