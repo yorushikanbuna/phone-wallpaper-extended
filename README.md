@@ -1,24 +1,30 @@
 # phone-wallpaper-extended
 
+> [English](#english) | [中文](#中文)
+
 Extend image height with a seamless exponential-blend transition — adapt wallpapers to taller phone screens **without cropping**. Works with any image resolution and any phone aspect ratio.
 
-## How it works
+通过无缝指数衰减混合过渡来扩展图片高度——**不裁切**原图，将壁纸适配到更长的手机屏幕。适用于任意图片分辨率和任意手机比例。
+
+---
+
+## English
+
+### How it works
 
 ```
 ┌──────────────────────────┐
 │   solid fill (adaptive)  │  ← pure colour from blurred image top
 ├──────────────────────────┤
-│   solid zone (8% of ext) │  ← overlay same colour → invisible seam
+│   solid zone (~8% of ext)│  ← overlay same colour → invisible seam
 │  ──── seam invisible ────│
-│   exp-blend (35% of ext) │  ← e⁻⁵ˣ decay: texture releases slowly
+│   blend zone (~35% of ext│  ← e⁻⁵ˣ decay: texture releases slowly
 ├──────────────────────────┤
 │   untouched original     │  ← full quality preserved
 └──────────────────────────┘
 ```
 
-Zones scale automatically with the extension amount. A 600 px extension gets ~50 px solid / ~200 px blend. A 200 px extension gets ~30 px solid / ~80 px blend.
-
-## Install
+### Install
 
 ```bash
 git clone https://github.com/yorushikanbuna/phone-wallpaper-extended.git
@@ -28,9 +34,7 @@ npm install
 
 Requires **Node.js ≥ 18**.
 
-## Usage
-
-### CLI
+### Usage
 
 ```bash
 node extend-wallpaper.js <input> [output] --target <WxH>
@@ -46,19 +50,17 @@ node extend-wallpaper.js <input> [output] --target <WxH>
 | `--blend-blur N` | `50` | Blur sigma for transition |
 | `--exp-k N` | `5` | Exponential decay steepness |
 
-### Examples
-
 ```bash
-# Your phone is 1216×2640, image is 1440×2520
+# Basic usage
 node extend-wallpaper.js photo.png --target 1216x2640
 
 # Custom output path
 node extend-wallpaper.js photo.png out.png --target 1080x2400
 
-# Fine-tune the blend
+# Fine-tune
 node extend-wallpaper.js photo.png --target 1216x2640 --solid 40 --blend 300
 
-# Batch process a folder
+# Batch
 for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
 ```
 
@@ -67,32 +69,118 @@ for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
 ```js
 const { extendImage } = require('./extend-wallpaper.js');
 
-// Specify phone resolution
+// By phone resolution
 await extendImage('in.png', 'out.png', { target: '1216x2640' });
 
-// Or aspect ratio
+// By aspect ratio
 await extendImage('in.png', 'out.png', { ratio: 1216 / 2640 });
 
-// With custom zones
+// Custom zones
 await extendImage('in.png', 'out.png', {
   target:    '1216x2640',
-  solidZone: 60,     // px of pure fill on original top
-  blendZone: 250,    // px of transition
-  fillBlur:  100,    // sigma for fill colour
-  blendBlur: 60,     // sigma for transition blur
-  expK:      6,      // steeper decay
+  solidZone: 60,
+  blendZone: 250,
 });
 ```
 
-## Tuning guide
+### Tuning
 
 | Symptom | Fix |
 |---------|-----|
-| Seam is visible | Increase `--solid` (e.g. 60) |
-| Transition too abrupt | Increase `--blend` (e.g. 300) |
-| Fill colour looks wrong | Increase `--fill-blur` (e.g. 120) |
-| Extension too blurry | Decrease `--blend-blur` (e.g. 30) |
-| Texture releases too fast | Increase `--exp-k` (e.g. 6–7) |
+| Seam visible | Increase `--solid` |
+| Transition too abrupt | Increase `--blend` |
+| Fill colour wrong | Increase `--fill-blur` |
+| Extension too blurry | Decrease `--blend-blur` |
+| Texture releases too fast | Increase `--exp-k` |
+
+---
+
+## 中文
+
+### 原理
+
+```
+┌──────────────────────────┐
+│   纯色延展区（自适应）     │  ← 取原图顶部重度模糊后的主色
+├──────────────────────────┤
+│   纯色覆盖区（约 8%）     │  ← 覆盖同色 → 接缝不可见
+│  ──── 接缝不可见 ──────  │
+│   指数混合区（约 35%）    │  ← e⁻⁵ˣ 衰减：纹理极慢释放
+├──────────────────────────┤
+│   原图未触碰部分          │  ← 画质完整保留
+└──────────────────────────┘
+```
+
+### 安装
+
+```bash
+git clone https://github.com/yorushikanbuna/phone-wallpaper-extended.git
+cd phone-wallpaper-extended
+npm install
+```
+
+需要 **Node.js ≥ 18**。
+
+### 使用
+
+```bash
+node extend-wallpaper.js <输入> [输出] --target <宽x高>
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--target WxH` | *(必填)* | 手机分辨率，如 `1216x2640` |
+| `--ratio N` | — | 或直接指定宽高比，如 `0.4606` |
+| `--solid N` | 自适应 | 原图顶部纯色覆盖像素数 |
+| `--blend N` | 自适应 | 过渡混合像素数 |
+| `--fill-blur N` | `80` | 填充色采样的模糊 sigma |
+| `--blend-blur N` | `50` | 过渡区模糊 sigma |
+| `--exp-k N` | `5` | 指数衰减陡峭度 |
+
+```bash
+# 基本用法
+node extend-wallpaper.js photo.png --target 1216x2640
+
+# 指定输出路径
+node extend-wallpaper.js photo.png out.png --target 1080x2400
+
+# 精细调参
+node extend-wallpaper.js photo.png --target 1216x2640 --solid 40 --blend 300
+
+# 批量处理
+for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
+```
+
+### API 调用
+
+```js
+const { extendImage } = require('./extend-wallpaper.js');
+
+// 指定手机分辨率
+await extendImage('in.png', 'out.png', { target: '1216x2640' });
+
+// 指定宽高比
+await extendImage('in.png', 'out.png', { ratio: 1216 / 2640 });
+
+// 自定义参数
+await extendImage('in.png', 'out.png', {
+  target:    '1216x2640',
+  solidZone: 60,     // 纯色覆盖区 px
+  blendZone: 250,    // 过渡区 px
+});
+```
+
+### 调参指南
+
+| 现象 | 解决 |
+|------|------|
+| 接缝可见 | 增大 `--solid` |
+| 过渡太突兀 | 增大 `--blend` |
+| 填充色不对 | 增大 `--fill-blur` |
+| 延展区太模糊 | 减小 `--blend-blur` |
+| 纹理释放太快 | 增大 `--exp-k` |
+
+---
 
 ## License
 
