@@ -3,7 +3,7 @@ const sharp = require('sharp');
 
 // ── Defaults ──────────────────────────────────────────────
 const FILL_BLUR = 80;   // sigma for fill-colour blur
-const CURVE_P   = 0.33; // power curve exponent: alpha = t^p (p<1 = fast start, soft finish)
+const CURVE_P   = 4;    // power curve: alpha = t^p (p>1 = slow start, fast finish)
 
 // ── Core ───────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ const CURVE_P   = 0.33; // power curve exponent: alpha = t^p (p<1 = fast start, 
  * @param {number}  [opts.ratio]       target width / height (e.g. 1216/2640)
  * @param {number}  [opts.modifyZone]  px of transparency gradient on original top
  * @param {number}  [opts.fillBlur]    blur sigma for fill-colour sampling
- * @param {number}  [opts.curveP]      power curve exponent (default 0.33, <1=soft finish)
+ * @param {number}  [opts.curveP]      power exponent (default 4, >1=slow start fast finish)
  */
 async function extendImage(inputPath, outputPath, opts = {}) {
   const meta = await sharp(inputPath).metadata();
@@ -129,7 +129,7 @@ function printHelp() {
     '    --ratio N         alt: aspect ratio (e.g. 0.4606)',
     '    --modify-zone N   px of transparency gradient (default: 10% of image height)',
     '    --fill-blur N     blur sigma for fill colour (default: 80)',
-    '    --curve-p N       power curve exponent: alpha=t^p (default: 0.33, <1=soft finish)',
+    '    --curve-p N       power exponent (default: 4, >1=slow start fast finish)',
     '',
     '  Examples:',
     '    node extend-wallpaper.js photo.png --target 1216x2640',
