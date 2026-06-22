@@ -31,8 +31,7 @@ object WallpaperExtender {
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
         bg.eraseColor(fillColor)
 
-        // 3. Original with S-curve alpha gradient
-        val denom = 1.0 - exp(-EXP_K)
+        // 3. Original with power-curve alpha gradient
         val pixels = IntArray(w * h)
         source.getPixels(pixels, 0, w, 0, 0, w, h)
         val canvas = Canvas(bg)
