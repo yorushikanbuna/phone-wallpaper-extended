@@ -83,8 +83,8 @@ class MainActivity : AppCompatActivity() {
 
         // Compute preview fill colours — blur+median only (HSL matching done at generate)
         CoroutineScope(Dispatchers.Default).launch {
-            val topC = sampleColor(bmp, 0, 15)
-            val botC = sampleColor(bmp, bmp.height - 8, 15)
+            val topC = sampleEdgeColor(bmp, fromTop = true)
+            val botC = sampleEdgeColor(bmp, fromTop = false)
             withContext(Dispatchers.Main) {
                 fillColor = topC
                 fillColor2 = botC
@@ -149,19 +149,11 @@ class MainActivity : AppCompatActivity() {
                 // Compute fill colours from FULL-RES bitmap with HSL matching at image edges
                 // (brightness reference at edge, not gradient endpoint — fillColor is invisible at endpoint)
 
-                // Sample base hue/saturation from image edges (narrow strip for true edge colour)
-                val edgeH = 15
-                val topSampleY = when (pos) { "bottom" -> bmp.height - 8; else -> 0 }
-                val topSampleH = edgeH
-                val topBase = sampleColor(bmp, topSampleY, topSampleH)
-                val botBase = sampleColor(bmp, bmp.height - 8, edgeH)
+                val topBase = sampleEdgeColor(bmp, fromTop = pos != "bottom")
+                val botBase = sampleEdgeColor(bmp, fromTop = false)
 
-                // Brightness reference at image edges (where fillColor is most visible)
-                val refTop = when (pos) { "bottom" -> bmp.height - 1; else -> 0 }
-                val refBot = bmp.height - 1  // only used in center mode
-
-                val topC = hslMatchColor(bmp, topBase, refTop)
-                val botC = if (pos == "center") hslMatchColor(bmp, botBase, refBot) else topC
+                val topC = hslMatchColor(bmp, topBase, fromTop = pos != "bottom")
+                val botC = if (pos == "center") hslMatchColor(bmp, botBase, fromTop = false) else topC
                 val fc2 = if (sameColor) topC else botC
 
                 val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, topC, fc2)
@@ -218,24 +210,27 @@ class MainActivity : AppCompatActivity() {
 
     // ── Fill-colour helpers (reusable across preview & generation) ──
 
-    /** Blur+median of a strip at [y] of height [hh] — captures dominant hue/saturation. */
-    private fun sampleColor(bmp: Bitmap, y: Int, hh: Int): Int {
+    /** Blur+median of [height] rows starting from the top or bottom edge. */
+    private fun sampleEdgeColor(bmp: Bitmap, fromTop: Boolean, height: Int = 15): Int {
         val h = bmp.height; val w = bmp.width
-        val t = maxOf(0, y - hh / 2); val sh = minOf(hh, h - t)
+        val startY = if (fromTop) 0 else (h - height).coerceAtLeast(0)
+        val sh = minOf(height, h - startY)
         if (sh <= 0) return Color.BLACK
-        val strip = Bitmap.createBitmap(bmp, 0, t, w, sh)
+        val strip = Bitmap.createBitmap(bmp, 0, startY, w, sh)
         val small = Bitmap.createScaledBitmap(strip, (w * 0.05f).toInt().coerceAtLeast(1),
             (sh * 0.05f).toInt().coerceAtLeast(1), true)
         val c = medianColor(small); strip.recycle(); small.recycle(); return c
     }
 
-    /** Preserve hue+saturation of [base], replace brightness with the 30-row strip at [refY]. */
-    private fun hslMatchColor(bmp: Bitmap, base: Int, refY: Int): Int {
+    /** Preserve hue+saturation of [base], replace brightness with a 30-row strip from the top or bottom edge. */
+    private fun hslMatchColor(bmp: Bitmap, base: Int, fromTop: Boolean): Int {
         val h = bmp.height; val w = bmp.width
-        val t = maxOf(0, refY - 15); val hh = minOf(30, h - t)
-        if (hh <= 0) return base
-        val strip = Bitmap.createBitmap(bmp, 0, t, w, hh)
-        val px = IntArray(w * hh); strip.getPixels(px, 0, w, 0, 0, w, hh); strip.recycle()
+        val refH = 30
+        val startY = if (fromTop) 0 else (h - refH).coerceAtLeast(0)
+        val sh = minOf(refH, h - startY)
+        if (sh <= 0) return base
+        val strip = Bitmap.createBitmap(bmp, 0, startY, w, sh)
+        val px = IntArray(w * sh); strip.getPixels(px, 0, w, 0, 0, w, sh); strip.recycle()
         var sR = 0; var sG = 0; var sB = 0
         for (p in px) { sR += p shr 16 and 0xFF; sG += p shr 8 and 0xFF; sB += p and 0xFF }
         val n = px.size; val bR = sR / n; val bG = sG / n; val bB = sB / n
