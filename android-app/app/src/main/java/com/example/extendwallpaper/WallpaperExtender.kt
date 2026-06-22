@@ -25,7 +25,7 @@ object WallpaperExtender {
 
         // Use preset colours from caller (MainActivity computes them)
         // Fallback: blur+median on top 30px (legacy, when called without preset)
-        if (presetFill < 0) {
+        if (presetFill == -1) {
             val sampleH = min(30, h)
             val top = Bitmap.createBitmap(source, 0, 0, w, sampleH)
             val blurred = blur(top, 40f)
