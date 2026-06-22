@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
 import android.view.View
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 class PreviewView @JvmOverloads constructor(
@@ -16,7 +15,6 @@ class PreviewView @JvmOverloads constructor(
     private var fraction = 0.1f
     private var phoneRatio = 1216f / 2640f
     private val paint = Paint()
-    private var scale = 1f  // scale factor when height-constrained
 
     fun setBitmap(bmp: Bitmap) { source = bmp; requestLayout() }
     fun setFillColor(color: Int) { fillColor = color; invalidate() }
@@ -32,21 +30,7 @@ class PreviewView @JvmOverloads constructor(
         val targetH = (src.width / phoneRatio).roundToInt()
         val extPx = targetH - src.height
         val extH = if (extPx > 0) (extPx * vw.toFloat() / src.width).roundToInt() else 0
-        val naturalH = extH + 2 + imgH
-
-        val maxH = MeasureSpec.getSize(heightMeasureSpec)
-        val mode = MeasureSpec.getMode(heightMeasureSpec)
-
-        if (mode == MeasureSpec.AT_MOST && naturalH > maxH) {
-            scale = maxH.toFloat() / naturalH
-            setMeasuredDimension(vw, maxH)
-        } else if (mode == MeasureSpec.EXACTLY && naturalH > maxH) {
-            scale = maxH.toFloat() / naturalH
-            setMeasuredDimension(vw, maxH)
-        } else {
-            scale = 1f
-            setMeasuredDimension(vw, naturalH)
-        }
+        setMeasuredDimension(vw, extH + 2 + imgH)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -54,33 +38,28 @@ class PreviewView @JvmOverloads constructor(
         val src = source ?: return
         val vw = width.toFloat()
 
-        val imgH = src.height * (vw / src.width) * scale
+        val imgH = src.height * (vw / src.width)
         val targetH = src.width / phoneRatio
         val extPx = targetH - src.height
-        val extH = if (extPx > 0) extPx * (vw / src.width) * scale else 0f
-        val gap = (2f * scale).coerceAtLeast(1f)
+        val extH = if (extPx > 0) extPx * (vw / src.width) else 0f
 
         val r = Color.red(fillColor)
         val g = Color.green(fillColor)
-        val bCol = Color.blue(fillColor)
+        val b = Color.blue(fillColor)
 
-        // 1. Extension bar
         paint.shader = null
         paint.color = fillColor
         canvas.drawRect(0f, 0f, vw, extH, paint)
 
-        // 2. Original image
-        val srcRect = Rect(0, 0, src.width, src.height)
-        val dstRect = Rect(0, (extH + gap).roundToInt(), vw.roundToInt(), (extH + gap + imgH).roundToInt())
-        canvas.drawBitmap(src, srcRect, dstRect, paint)
+        val dstRect = Rect(0, extH.roundToInt() + 2, vw.roundToInt(), (extH + 2f + imgH).roundToInt())
+        canvas.drawBitmap(src, null, dstRect, paint)
 
-        // 3. Gradient overlay
         val fadeH = imgH * fraction
         if (fadeH > 0) {
-            val y0 = extH + gap
+            val y0 = extH + 2f
             paint.shader = LinearGradient(
                 0f, y0, 0f, y0 + fadeH,
-                intArrayOf(Color.argb(255, r, g, bCol), Color.argb(0, r, g, bCol)),
+                intArrayOf(Color.argb(255, r, g, b), Color.argb(0, r, g, b)),
                 floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
             )
             canvas.drawRect(0f, y0, vw, y0 + fadeH, paint)

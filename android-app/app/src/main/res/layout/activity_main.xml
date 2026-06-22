@@ -4,223 +4,216 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg"
-    android:fitsSystemWindows="true"
-    android:fillViewport="true">
+    android:fitsSystemWindows="true">
 
-<LinearLayout
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical">
-
-    <!-- Title bar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="20dp"
-        android:layout_marginTop="12dp">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="壁纸延展"
-            android:textSize="24sp"
-            android:textColor="@color/text_primary"
-            android:fontFamily="sans-serif-medium" />
-
-        <TextView
-            android:id="@+id/btnPickImage"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:gravity="center"
-            android:paddingHorizontal="16dp"
-            android:text="📷 选择"
-            android:textSize="14sp"
-            android:textColor="@color/accent_primary"
-            android:background="@drawable/input_field_bg"
-            android:clickable="true"
-            android:focusable="true" />
-    </LinearLayout>
-
-    <!-- Image info tag -->
-    <TextView
-        android:id="@+id/tvImageInfo"
-        android:layout_width="wrap_content"
-        android:layout_height="24dp"
-        android:layout_marginStart="20dp"
-        android:layout_marginBottom="4dp"
-        android:gravity="center_vertical"
-        android:text="选择一张图片吧～"
-        android:textSize="12sp"
-        android:textColor="@color/text_muted"
-        android:paddingHorizontal="10dp"
-        android:background="@drawable/input_field_bg" />
-
-    <!-- Preview — correct proportions in a subtle frame -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="240dp"
-        android:layout_marginHorizontal="12dp"
-        android:layout_marginTop="4dp"
-        android:layout_marginBottom="8dp"
-        android:background="@drawable/preview_frame"
-        android:elevation="2dp"
-        android:clipChildren="true">
-
-        <com.example.extendwallpaper.PreviewView
-            android:id="@+id/previewView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_margin="3dp" />
-    </FrameLayout>
-
-    <!-- Bottom controls card -->
-    <androidx.cardview.widget.CardView
-        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:layout_marginEnd="12dp"
-        android:layout_marginBottom="12dp"
-        app:cardCornerRadius="32dp"
-        app:cardElevation="8dp"
-        app:cardBackgroundColor="@color/surface"
-        android:clipChildren="false">
+        android:orientation="vertical"
+        android:minHeight="0dp">
 
+        <!-- Title bar -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:layout_height="56dp"
+            android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="20dp">
-
-            <!-- Resolution row -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="14dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="分辨率"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_muted"
-                    android:layout_marginEnd="12dp" />
-
-                <EditText
-                    android:id="@+id/etPhoneWidth"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="44dp"
-                    android:inputType="number"
-                    android:text="1216"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="#C4BFD0"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:background="@drawable/input_field_bg" />
-
-                <TextView
-                    android:layout_width="28dp"
-                    android:layout_height="44dp"
-                    android:gravity="center"
-                    android:text="×"
-                    android:textSize="16sp"
-                    android:textColor="@color/text_muted" />
-
-                <EditText
-                    android:id="@+id/etPhoneHeight"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="44dp"
-                    android:inputType="number"
-                    android:text="2640"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="#C4BFD0"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:background="@drawable/input_field_bg" />
-            </LinearLayout>
-
-            <!-- Slider -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="2dp">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="渐变区域"
-                    android:textSize="13sp"
-                    android:textColor="@color/text_muted" />
-
-                <TextView
-                    android:id="@+id/tvModifyZone"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="10%"
-                    android:textSize="14sp"
-                    android:textColor="@color/accent_primary"
-                    android:fontFamily="monospace" />
-            </LinearLayout>
-
-            <SeekBar
-                android:id="@+id/sbModifyZone"
-                android:layout_width="match_parent"
-                android:layout_height="24dp"
-                android:max="100"
-                android:progress="10"
-                android:thumbTint="@color/accent_primary"
-                android:progressTint="@color/accent_primary"
-                android:progressBackgroundTint="#E8E4F0"
-                android:layout_marginBottom="12dp" />
-
-            <!-- Generate button -->
-            <LinearLayout
-                android:id="@+id/btnGenerate"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:gravity="center"
-                android:background="@drawable/btn_primary"
-                android:clickable="true"
-                android:focusable="true"
-                android:elevation="4dp">
-
-                <ProgressBar
-                    android:id="@+id/progressBar"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_marginEnd="8dp"
-                    android:visibility="gone"
-                    android:indeterminateTint="@color/text_on_primary" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="生成壁纸 ✨"
-                    android:textSize="16sp"
-                    android:textColor="@color/text_on_primary"
-                    android:fontFamily="sans-serif-medium" />
-            </LinearLayout>
+            android:layout_marginTop="12dp">
 
             <TextView
-                android:id="@+id/tvResult"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="壁纸延展"
+                android:textSize="24sp"
+                android:textColor="@color/text_primary"
+                android:fontFamily="sans-serif-medium" />
+
+            <TextView
+                android:id="@+id/btnPickImage"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="📷 选择"
+                android:textSize="14sp"
+                android:textColor="@color/accent_primary"
+                android:background="@drawable/input_field_bg"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvImageInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginBottom="4dp"
+            android:gravity="center_vertical"
+            android:text="选择一张图片吧～"
+            android:textSize="12sp"
+            android:textColor="@color/text_muted"
+            android:paddingHorizontal="10dp"
+            android:background="@drawable/input_field_bg" />
+
+        <!-- Preview — natural proportions, scroll if needed -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/preview_frame"
+            android:elevation="2dp">
+
+            <com.example.extendwallpaper.PreviewView
+                android:id="@+id/previewView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:textSize="11sp"
-                android:textColor="@color/text_muted"
-                android:gravity="center" />
-        </LinearLayout>
-    </androidx.cardview.widget.CardView>
+                android:layout_margin="3dp" />
+        </FrameLayout>
 
-</LinearLayout>
+        <!-- Bottom controls card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="32dp"
+            app:cardElevation="8dp"
+            app:cardBackgroundColor="@color/surface"
+            android:clipChildren="false">
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="20dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="20dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="分辨率"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_muted"
+                        android:layout_marginEnd="12dp" />
+
+                    <EditText
+                        android:id="@+id/etPhoneWidth"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="44dp"
+                        android:inputType="number"
+                        android:text="1216"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="#C4BFD0"
+                        android:textSize="15sp"
+                        android:gravity="center"
+                        android:background="@drawable/input_field_bg" />
+
+                    <TextView
+                        android:layout_width="28dp"
+                        android:layout_height="44dp"
+                        android:gravity="center"
+                        android:text="×"
+                        android:textSize="16sp"
+                        android:textColor="@color/text_muted" />
+
+                    <EditText
+                        android:id="@+id/etPhoneHeight"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="44dp"
+                        android:inputType="number"
+                        android:text="2640"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="#C4BFD0"
+                        android:textSize="15sp"
+                        android:gravity="center"
+                        android:background="@drawable/input_field_bg" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="2dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="渐变区域"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_muted" />
+
+                    <TextView
+                        android:id="@+id/tvModifyZone"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="10%"
+                        android:textSize="14sp"
+                        android:textColor="@color/accent_primary"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sbModifyZone"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:max="100"
+                    android:progress="10"
+                    android:thumbTint="@color/accent_primary"
+                    android:progressTint="@color/accent_primary"
+                    android:progressBackgroundTint="#E8E4F0"
+                    android:layout_marginBottom="12dp" />
+
+                <LinearLayout
+                    android:id="@+id/btnGenerate"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:gravity="center"
+                    android:background="@drawable/btn_primary"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:elevation="4dp">
+
+                    <ProgressBar
+                        android:id="@+id/progressBar"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="8dp"
+                        android:visibility="gone"
+                        android:indeterminateTint="@color/text_on_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="生成壁纸 ✨"
+                        android:textSize="16sp"
+                        android:textColor="@color/text_on_primary"
+                        android:fontFamily="sans-serif-medium" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_muted"
+                    android:gravity="center" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
 </ScrollView>
