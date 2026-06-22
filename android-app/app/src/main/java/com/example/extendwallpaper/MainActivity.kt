@@ -2,7 +2,6 @@ package com.example.extendwallpaper
 
 import android.content.ContentValues
 import android.graphics.*
-import kotlin.math.roundToInt
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,12 +12,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.extendwallpaper.databinding.ActivityMainBinding
 import kotlinx.coroutines.*
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var sourceBitmap: Bitmap? = null
-    private var overlay: GradientOverlay? = null
     private var fillColor = Color.BLACK
     private var gradientPercent = 10
 
@@ -31,17 +30,14 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        overlay = binding.gradientOverlay
-
         binding.btnPickImage.setOnClickListener { pickImage.launch("image/*") }
-
         binding.btnGenerate.setOnClickListener { generate() }
 
         binding.sbModifyZone.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 gradientPercent = progress.coerceIn(1, 100)
                 binding.tvModifyZone.text = "${gradientPercent}%"
-                overlay?.setFraction(gradientPercent / 100f)
+                binding.previewView.setFraction(gradientPercent / 100f)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar) {}
             override fun onStopTrackingTouch(seekBar: SeekBar) {}
@@ -55,21 +51,29 @@ class MainActivity : AppCompatActivity() {
         binding.btnGenerate.isEnabled = true
 
         // Show preview
-        binding.ivPreview.setImageBitmap(bmp)
+        binding.previewView.setBitmap(bmp)
+        updatePreviewRatio()
 
-        // Compute fill colour for overlay
+        // Compute fill colour
         CoroutineScope(Dispatchers.Default).launch {
             val topH = minOf(30, bmp.height)
             val top = Bitmap.createBitmap(bmp, 0, 0, bmp.width, topH)
-            val small = Bitmap.createScaledBitmap(top, (bmp.width * 0.1f).toInt().coerceAtLeast(1),
+            val small = Bitmap.createScaledBitmap(top,
+                (bmp.width * 0.1f).toInt().coerceAtLeast(1),
                 (topH * 0.1f).toInt().coerceAtLeast(1), true)
             val c = medianColor(small)
             top.recycle(); small.recycle()
             withContext(Dispatchers.Main) {
                 fillColor = c
-                overlay?.setFillColor(c)
+                binding.previewView.setFillColor(c)
             }
         }
+    }
+
+    private fun updatePreviewRatio() {
+        val pw = binding.etPhoneWidth.text.toString().toFloatOrNull() ?: 1216f
+        val ph = binding.etPhoneHeight.text.toString().toFloatOrNull() ?: 2640f
+        if (ph > 0) binding.previewView.setPhoneRatio(pw / ph)
     }
 
     private fun loadBitmap(uri: Uri): Bitmap? = try {
@@ -82,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         val bmp = sourceBitmap ?: return
         val pw = binding.etPhoneWidth.text.toString().toIntOrNull() ?: 1216
         val ph = binding.etPhoneHeight.text.toString().toIntOrNull() ?: 2640
+        updatePreviewRatio()
         val modifyPx = (bmp.height * gradientPercent / 100f).roundToInt()
 
         binding.btnGenerate.isEnabled = false
