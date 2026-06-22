@@ -23,22 +23,15 @@ object WallpaperExtender {
         var fillColor = presetFill
         var fillColor2 = presetFill2
 
+        // Use preset colours from caller (MainActivity computes them)
+        // Fallback: blur+median on top 30px (legacy, when called without preset)
         if (presetFill < 0) {
-            // Fill colour: blur+median on top 30px (same as preview)
             val sampleH = min(30, h)
             val top = Bitmap.createBitmap(source, 0, 0, w, sampleH)
             val blurred = blur(top, 40f)
             fillColor = medianColor(blurred)
             top.recycle(); blurred.recycle()
             fillColor2 = fillColor
-            if (position == "center" && !sameColor) {
-                val bTop = maxOf(0, h - halfZone - 10)
-                val bH = min(20, h - bTop)
-                val bot = Bitmap.createBitmap(source, 0, bTop, w, bH)
-                val botBlurred = blur(bot, 40f)
-                fillColor2 = medianColor(botBlurred)
-                bot.recycle(); botBlurred.recycle()
-            }
         }
 
         // 2. Fill background (two-colour for center mode)
