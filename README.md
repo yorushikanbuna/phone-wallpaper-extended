@@ -179,6 +179,32 @@ await extendImage('in.png', 'out.png', {
 
 ---
 
+## Examples / 效果展示
+
+> Top: original — Bottom: extended. 上：原图 — 下：延展后
+
+<details>
+<summary>瑞希</summary>
+<img src="images/瑞希-compare.png" width="600">
+</details>
+
+<details>
+<summary>绘名</summary>
+<img src="images/绘名-compare.png" width="600">
+</details>
+
+<details>
+<summary>奏</summary>
+<img src="images/奏-compare.png" width="600">
+</details>
+
+<details>
+<summary>真东</summary>
+<img src="images/真东-compare.png" width="600">
+</details>
+
+---
+
 ## Android App
 
 原生 Android 版本（Kotlin + Canvas），可在手机上一键处理壁纸。
