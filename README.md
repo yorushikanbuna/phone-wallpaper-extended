@@ -135,6 +135,16 @@ await extendImage('in.png', 'out.png', { target: '1216x2640' });
 
 ---
 
+## Android App
+
+The `android-app/` directory contains a native Android version (Kotlin + Canvas).
+
+[![Build APK](https://github.com/yorushikanbuna/phone-wallpaper-extended/actions/workflows/build-apk.yml/badge.svg)](https://github.com/yorushikanbuna/phone-wallpaper-extended/actions/workflows/build-apk.yml)
+
+Open `android-app/` in **Android Studio**, or download the latest APK from [GitHub Actions](https://github.com/yorushikanbuna/phone-wallpaper-extended/actions/workflows/build-apk.yml).
+
+---
+
 ## License
 
 MIT
