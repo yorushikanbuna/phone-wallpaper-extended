@@ -146,9 +146,8 @@ class MainActivity : AppCompatActivity() {
 
         generateJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Compute fill colours from FULL-RES bitmap with HSL matching at actual gradient endpoints
-                val zone = modifyPx
-                val halfZone = zone / 2
+                // Compute fill colours from FULL-RES bitmap with HSL matching at image edges
+                // (brightness reference at edge, not gradient endpoint — fillColor is invisible at endpoint)
 
                 // Sample base hue/saturation from image edges
                 val topSampleY = when (pos) { "bottom" -> bmp.height - 15; else -> 0 }
@@ -156,13 +155,9 @@ class MainActivity : AppCompatActivity() {
                 val topBase = sampleColor(bmp, topSampleY, topSampleH)
                 val botBase = sampleColor(bmp, bmp.height - 15, 20)
 
-                // Brightness reference at gradient endpoints (where fade meets opaque image)
-                val refTop = when (pos) {
-                    "bottom" -> bmp.height - zone
-                    "center" -> halfZone
-                    else -> zone
-                }
-                val refBot = bmp.height - halfZone  // only used in center mode
+                // Brightness reference at image edges (where fillColor is most visible)
+                val refTop = when (pos) { "bottom" -> bmp.height - 1; else -> 0 }
+                val refBot = bmp.height - 1  // only used in center mode
 
                 val topC = hslMatchColor(bmp, topBase, refTop)
                 val botC = if (pos == "center") hslMatchColor(bmp, botBase, refBot) else topC

@@ -4,7 +4,7 @@ import android.graphics.*
 import kotlin.math.*
 
 object WallpaperExtender {
-    private const val EXP_K = 3.0
+    private const val EXP_K = 1.5
 
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
