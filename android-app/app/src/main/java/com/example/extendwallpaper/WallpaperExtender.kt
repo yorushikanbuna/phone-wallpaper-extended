@@ -4,7 +4,7 @@ import android.graphics.*
 import kotlin.math.*
 
 object WallpaperExtender {
-    private const val EXP_K = 3.0
+    private const val CURVE_P = 0.33
     private const val FILL_SAMPLE_H: Int = 30
 
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
@@ -40,10 +40,7 @@ object WallpaperExtender {
 
         fun alphaFromTop(dist: Int, range: Int): Int {
             val t = (dist.toFloat() / range).coerceAtMost(1f)
-            val curve = (exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / denom
-            // Linear tail: last 25% blends to 1.0 to avoid sharp cutoff
-            val linear = maxOf(0f, (t - 0.75f) / 0.25f)
-            return (255 * (curve * (1 - linear) + linear)).roundToInt().coerceIn(0, 255)
+            return (255 * Math.pow(t.toDouble(), CURVE_P)).roundToInt().coerceIn(0, 255)
         }
 
         for (y in 0 until h) {

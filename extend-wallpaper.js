@@ -3,13 +3,13 @@ const sharp = require('sharp');
 
 // ── Defaults ──────────────────────────────────────────────
 const FILL_BLUR = 80;   // sigma for fill-colour blur
-const EXP_K     = 3;    // exponential S-curve steepness
+const CURVE_P   = 0.33; // power curve exponent: alpha = t^p (p<1 = fast start, soft finish)
 
 // ── Core ───────────────────────────────────────────────────
 
 /**
  * Extend an image with a solid-colour background and the original
- * fading in via an exponential-S-curve transparency gradient.
+ * fading in via a power-curve transparency gradient (alpha = t^p).
  *
  * @param {string}  inputPath
  * @param {string}  outputPath
@@ -18,7 +18,7 @@ const EXP_K     = 3;    // exponential S-curve steepness
  * @param {number}  [opts.ratio]       target width / height (e.g. 1216/2640)
  * @param {number}  [opts.modifyZone]  px of transparency gradient on original top
  * @param {number}  [opts.fillBlur]    blur sigma for fill-colour sampling
- * @param {number}  [opts.expK]        exponential S-curve steepness
+ * @param {number}  [opts.curveP]      power curve exponent (default 0.33, <1=soft finish)
  */
 async function extendImage(inputPath, outputPath, opts = {}) {
   const meta = await sharp(inputPath).metadata();
@@ -47,7 +47,7 @@ async function extendImage(inputPath, outputPath, opts = {}) {
 
   const modifyZone = opts.modifyZone ?? Math.round(height * 0.1);
   const fillBlur   = opts.fillBlur   ?? FILL_BLUR;
-  const expK       = opts.expK       ?? EXP_K;
+  const curveP     = opts.curveP     ?? CURVE_P;
 
   // ── 1. Sample fill colour from heavily-blurred narrow top strip ──
   const FILL_SAMPLE_H = Math.min(30, height);
@@ -80,18 +80,14 @@ async function extendImage(inputPath, outputPath, opts = {}) {
       background: { r: fR, g: fG, b: fB, alpha: 1 } },
   }).png().toBuffer();
 
-  // ── 3. Original with exponential-S-curve transparency gradient ──
-  //    Alpha follows e^(-k*(1-t)) shape: slow start, fast finish
+  // ── 3. Original with power-curve transparency gradient ──
+  //    alpha = t^p, where t = y/modifyZone, p < 1 for soft finish
   const origWithAlphaBuf = Buffer.alloc(height * width * 4);
   const origRaw = await sharp(inputPath).removeAlpha().raw().toBuffer();
-  const denom = 1 - Math.exp(-expK);
 
   for (let y = 0; y < height; y++) {
     const t = Math.min(y / modifyZone, 1);
-    const curve = (Math.exp(-expK * (1 - t)) - Math.exp(-expK)) / denom;
-    // Linear tail: last 25% of zone blends in linearly to avoid sharp cutoff
-    const linear = Math.max(0, (t - 0.75) / 0.25);
-    const alpha = Math.round(255 * (curve * (1 - linear) + 1 * linear));
+    const alpha = Math.round(255 * Math.pow(t, curveP));
 
     for (let x = 0; x < width; x++) {
       const si = (y * width + x) * 3;
@@ -133,7 +129,7 @@ function printHelp() {
     '    --ratio N         alt: aspect ratio (e.g. 0.4606)',
     '    --modify-zone N   px of transparency gradient (default: 10% of image height)',
     '    --fill-blur N     blur sigma for fill colour (default: 80)',
-    '    --exp-k N         exponential S-curve steepness (default: 3)',
+    '    --curve-p N       power curve exponent: alpha=t^p (default: 0.33, <1=soft finish)',
     '',
     '  Examples:',
     '    node extend-wallpaper.js photo.png --target 1216x2640',
@@ -152,7 +148,7 @@ function parseArgv(argv) {
     else if (a === '--ratio')          { args.ratio      = parseFloat(argv[++i]); }
     else if (a === '--modify-zone')    { args.modifyZone = parseInt(argv[++i], 10); }
     else if (a === '--fill-blur')      { args.fillBlur   = parseFloat(argv[++i]); }
-    else if (a === '--exp-k')          { args.expK       = parseFloat(argv[++i]); }
+    else if (a === '--curve-p')        { args.curveP      = parseFloat(argv[++i]); }
     else { args._.push(a); }
   }
   return args;
@@ -174,7 +170,7 @@ async function main() {
   if (args.ratio)      opts.ratio      = args.ratio;
   if (args.modifyZone) opts.modifyZone = args.modifyZone;
   if (args.fillBlur)   opts.fillBlur   = args.fillBlur;
-  if (args.expK)       opts.expK       = args.expK;
+  if (args.curveP)     opts.curveP     = args.curveP;
 
   try {
     const { extendPx, fillColor, width, height, targetH } =
