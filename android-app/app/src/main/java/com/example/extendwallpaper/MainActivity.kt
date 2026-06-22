@@ -175,6 +175,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 val sameColor = binding.cbSameColor.isChecked
                 val fc2 = if (sameColor) fillColor else fillColor2
+                android.util.Log.d("Extend", "generate: sameColor=$sameColor fillColor=#${Integer.toHexString(fillColor)} fillColor2=#${Integer.toHexString(fillColor2)} fc2=#${Integer.toHexString(fc2)}")
                 val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fc2)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
