@@ -17,7 +17,7 @@ object WallpaperExtender {
         if (ext <= 0) return Result(source, Color.TRANSPARENT, 0)
 
         val zone = if (modifyZone > 0) modifyZone else (h * 0.1f).roundToInt()
-        val topOffset = when (position) { "bottom" -> ext; "center" -> ext / 2; else -> ext }
+        val topOffset = when (position) { "bottom" -> 0; "center" -> ext / 2; else -> ext }
         val halfZone = zone / 2
 
         // 1. Fill colour from blurred top 30px
@@ -108,8 +108,8 @@ object WallpaperExtender {
             }
         }
 
-        // Vertical pass
-        tmp.copyInto(pixels) // swap
+        // Vertical pass — use horizontally-blurred result as source
+        pixels.copyInto(tmp)
         for (x in 0 until w) {
             var sumR = 0; var sumG = 0; var sumB = 0; var count = 0
             for (y in 0 until h + radius) {

@@ -10,6 +10,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.widget.SeekBar
 import android.widget.Toast
+import kotlinx.coroutines.Job
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.extendwallpaper.databinding.ActivityMainBinding
@@ -22,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private var sourceBitmap: Bitmap? = null
     private var fillColor = Color.BLACK
     private var gradientPercent = 10
+    private var generateJob: Job? = null
 
     private val pickImage = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -129,7 +131,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnGenerate.alpha = 0.5f
         binding.progressBar.visibility = android.view.View.VISIBLE
 
-        CoroutineScope(Dispatchers.IO).launch {
+        generateJob = CoroutineScope(Dispatchers.IO).launch {
             try {
                 val pos = when (binding.rgPosition.checkedRadioButtonId) {
                     R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
@@ -165,8 +167,8 @@ class MainActivity : AppCompatActivity() {
         }
         val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
             ?: throw Exception("无法创建输出文件")
-        contentResolver.openOutputStream(uri)?.use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        contentResolver.openOutputStream(uri).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it!!)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             values.clear(); values.put(MediaStore.Images.Media.IS_PENDING, 0)
@@ -187,6 +189,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy(); sourceBitmap?.recycle()
+        super.onDestroy(); generateJob?.cancel(); sourceBitmap?.recycle()
     }
 }
