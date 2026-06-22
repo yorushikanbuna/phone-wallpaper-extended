@@ -32,15 +32,15 @@ jobs:
             -dname "CN=WallpaperExtend,O=Extend,C=CN"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
 
       - name: Build release APK
         working-directory: android-app
         env:
           VERSION_CODE: ${{ github.run_number }}
-        run: |
-          gradle wrapper --gradle-version 8.10
-          ./gradlew assembleRelease
+        run: gradle assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
