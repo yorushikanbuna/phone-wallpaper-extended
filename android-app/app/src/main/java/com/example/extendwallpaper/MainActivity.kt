@@ -45,6 +45,8 @@ class MainActivity : AppCompatActivity() {
         binding.etPhoneWidth.addTextChangedListener(resolutionWatcher)
         binding.etPhoneHeight.addTextChangedListener(resolutionWatcher)
 
+        binding.cbSameColor.setOnCheckedChangeListener { _, _ -> updatePreviewColors() }
+
         binding.rgPosition.setOnCheckedChangeListener { _, id ->
             val pos = when (id) {
                 R.id.rbCenter -> "center"
@@ -89,6 +91,24 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 fillColor = c
                 binding.previewView.setFillColor(c)
+                updatePreviewColors()
+            }
+        }
+    }
+
+    private fun updatePreviewColors() {
+        if (sourceBitmap == null) return
+        val bmp = sourceBitmap!!
+        CoroutineScope(Dispatchers.Default).launch {
+            val h = bmp.height; val zone = (h * 0.1f).toInt()
+            val halfZone = zone / 2
+            val c2 = if (binding.rgPosition.checkedRadioButtonId == R.id.rbCenter && !binding.cbSameColor.isChecked) {
+                val top2 = maxOf(0, h - halfZone - 10); val hh = minOf(20, h - top2)
+                val strip = Bitmap.createBitmap(bmp, 0, top2, bmp.width, hh)
+                medianColor(strip)
+            } else fillColor
+            withContext(Dispatchers.Main) {
+                binding.previewView.setFillColor2(c2, binding.cbSameColor.isChecked)
             }
         }
     }

@@ -12,14 +12,17 @@ class PreviewView @JvmOverloads constructor(
 
     private var source: Bitmap? = null
     private var fillColor = Color.BLACK
+    private var fillColor2 = Color.BLACK
+    private var sameColor = false
     private var fraction = 0.1f
     private var phoneRatio = 1216f / 2640f
     private val paint = Paint()
     private var scale = 1f
-    private var position = "top" // top, center, bottom
+    private var position = "top"
 
     fun setBitmap(bmp: Bitmap) { source = bmp; requestLayout() }
     fun setFillColor(color: Int) { fillColor = color; invalidate() }
+    fun setFillColor2(color: Int, same: Boolean) { fillColor2 = color; sameColor = same; invalidate() }
     fun setFraction(f: Float) { fraction = f.coerceIn(0f, 1f); invalidate() }
     fun setPhoneRatio(ratio: Float) { phoneRatio = ratio; requestLayout() }
     fun setPosition(pos: String) { position = pos; requestLayout() }
@@ -82,6 +85,8 @@ class PreviewView @JvmOverloads constructor(
                 val halfExt = extH / 2f
                 val totalH = halfExt + gap + imgH + gap + halfExt
                 val top = (vh - totalH) / 2f
+                val useSecond = fillColor2 != fillColor && !sameColor
+                val r2 = Color.red(fillColor2); val g2 = Color.green(fillColor2); val b2 = Color.blue(fillColor2)
                 // top ext bar
                 canvas.drawRect(0f, top, vw, top + halfExt, paint)
                 // image
@@ -89,8 +94,10 @@ class PreviewView @JvmOverloads constructor(
                 val dstRect = Rect(0, imgTop.roundToInt(), vw.roundToInt(), (imgTop + imgH).roundToInt())
                 canvas.drawBitmap(src, null, dstRect, paint)
                 // bottom ext bar
+                paint.shader = null; paint.color = if (useSecond) fillColor2 else fillColor
                 canvas.drawRect(0f, imgTop + imgH + gap, vw, imgTop + imgH + gap + halfExt, paint)
-                // top gradient (fill→transparent)
+                paint.color = fillColor
+                // top gradient
                 var fadeH = imgH * fraction
                 if (fadeH > 0) {
                     paint.shader = LinearGradient(0f, imgTop, 0f, imgTop + fadeH,
@@ -99,11 +106,12 @@ class PreviewView @JvmOverloads constructor(
                     canvas.drawRect(0f, imgTop, vw, imgTop + fadeH, paint)
                     paint.shader = null
                 }
-                // bottom gradient (transparent→fill)
+                // bottom gradient — use fillColor2 if different
+                val br = if(useSecond) r2 else r; val bgC = if(useSecond) g2 else g; val bb = if(useSecond) b2 else b
                 if (fadeH > 0) {
                     val botY = imgTop + imgH - fadeH
                     paint.shader = LinearGradient(0f, botY, 0f, botY + fadeH,
-                        intArrayOf(Color.argb(0, r, g, b), Color.argb(255, r, g, b)),
+                        intArrayOf(Color.argb(0, br, bgC, bb), Color.argb(255, br, bgC, bb)),
                         floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
                     canvas.drawRect(0f, botY, vw, botY + fadeH, paint)
                     paint.shader = null
