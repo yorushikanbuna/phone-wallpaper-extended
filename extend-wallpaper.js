@@ -3,7 +3,7 @@ const sharp = require('sharp');
 
 // ── Defaults ──────────────────────────────────────────────
 const FILL_BLUR = 80;   // sigma for fill-colour blur
-const CURVE_P   = 3;    // power curve: alpha = t^p (p>1 = slow start, fast finish)
+const CURVE_P   = 2;    // power curve: alpha = t^p (p>1 = slow start, fast finish)
 
 // ── Core ───────────────────────────────────────────────────
 
