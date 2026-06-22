@@ -24,34 +24,21 @@ object WallpaperExtender {
         var fillColor2 = presetFill2
 
         if (presetFill < 0) {
-            // 1. Fill colour from top 30px, then brightness-match to gradient boundary
+            // Fill colour: blur+median on top 30px (same as preview)
             val sampleH = min(30, h)
             val top = Bitmap.createBitmap(source, 0, 0, w, sampleH)
             val blurred = blur(top, 40f)
-            val baseFill = medianColor(blurred)
+            fillColor = medianColor(blurred)
             top.recycle(); blurred.recycle()
-
-            fun matchLum(y: Int): Int {
-                val t = maxOf(0, y - 10); val hh = min(20, h - t)
-                if (hh <= 0) return baseFill
-                val bmp = Bitmap.createBitmap(source, 0, t, w, hh)
-                val px = IntArray(w * hh); bmp.getPixels(px, 0, w, 0, 0, w, hh)
-                var sum=0f; for(c in px) sum+=0.299f*(c shr 16 and 0xFF)+0.587f*(c shr 8 and 0xFF)+0.114f*(c and 0xFF)
-                val bLum=sum/px.size/255f; bmp.recycle()
-                val fR=baseFill shr 16 and 0xFF; val fG=baseFill shr 8 and 0xFF; val fB=baseFill and 0xFF
-                val fRf=fR/255f;val fGf=fG/255f;val fBf=fB/255f
-                val mx=maxOf(fRf,fGf,fBf);val mn=minOf(fRf,fGf,fBf);val d=mx-mn
-                var fH=0f;var fS=0f
-                if(d>0f){fS=if((mx+mn)/2f>.5f)d/(2f-mx-mn) else d/(mx+mn)
-                    fH=if(mx==fRf)((fGf-fBf)/d+(if(fGf<fBf)6f else 0f))/6f
-                    else if(mx==fGf)((fBf-fRf)/d+2f)/6f else((fRf-fGf)/d+4f)/6f}
-                val q=if(bLum<.5f)bLum*(1f+fS)else bLum+fS-bLum*fS;val p=2f*bLum-q
-                fun hue(h:Float):Int{var t=h;if(t<0f)t+=1f;if(t>1f)t-=1f
-                    return (if(t<1f/6f)p+(q-p)*6f*t else if(t<.5f)q else if(t<2f/3f)p+(q-p)*(2f/3f-t)*6f else p).times(255f).roundToInt().coerceIn(0,255)}
-                return 0xFF shl 24 or (hue(fH+1f/3f) shl 16) or (hue(fH) shl 8) or hue(fH-1f/3f)
+            fillColor2 = fillColor
+            if (position == "center" && !sameColor) {
+                val bTop = maxOf(0, h - halfZone - 10)
+                val bH = min(20, h - bTop)
+                val bot = Bitmap.createBitmap(source, 0, bTop, w, bH)
+                val botBlurred = blur(bot, 40f)
+                fillColor2 = medianColor(botBlurred)
+                bot.recycle(); botBlurred.recycle()
             }
-            fillColor = when(position){"center"->matchLum(halfZone);"bottom"->matchLum(h-zone);else->matchLum(zone)}
-            fillColor2 = if(position=="center" && !sameColor) matchLum(h-halfZone) else fillColor
         }
 
         // 2. Fill background (two-colour for center mode)
