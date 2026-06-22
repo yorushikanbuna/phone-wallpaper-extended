@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,6 +34,14 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnPickImage.setOnClickListener { pickImage.launch("image/*") }
         binding.btnGenerate.setOnClickListener { generate() }
+
+        val resolutionWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) { updatePreviewRatio() }
+        }
+        binding.etPhoneWidth.addTextChangedListener(resolutionWatcher)
+        binding.etPhoneHeight.addTextChangedListener(resolutionWatcher)
 
         binding.sbModifyZone.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
