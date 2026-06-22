@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:padding="20dp">
+    <LinearLayout android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:orientation="vertical"
+        android:gravity="center_horizontal">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="壁纸延展" android:textSize="28sp" android:textStyle="bold"
+            android:layout_marginBottom="24dp" />
+        <Button android:id="@+id/btnPickImage" android:layout_width="match_parent"
+            android:layout_height="56dp" android:text="选择图片" android:textSize="16sp" />
+        <TextView android:id="@+id/tvImageInfo" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:text="尚未选择图片" android:textSize="14sp" android:textColor="#666"
+            android:gravity="center" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="24dp" android:text="手机分辨率" android:textSize="16sp"
+            android:textStyle="bold" />
+        <LinearLayout android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+            <EditText android:id="@+id/etPhoneWidth" android:layout_width="0dp"
+                android:layout_weight="1" android:layout_height="48dp"
+                android:inputType="number" android:hint="宽度" android:text="1216"
+                android:gravity="center" android:textSize="16sp" />
+            <TextView android:layout_width="40dp" android:layout_height="48dp"
+                android:gravity="center" android:text="×" android:textSize="20sp" />
+            <EditText android:id="@+id/etPhoneHeight" android:layout_width="0dp"
+                android:layout_weight="1" android:layout_height="48dp"
+                android:inputType="number" android:hint="高度" android:text="2640"
+                android:gravity="center" android:textSize="16sp" />
+        </LinearLayout>
+        <Button android:id="@+id/btnGenerate" android:layout_width="match_parent"
+            android:layout_height="56dp" android:layout_marginTop="20dp"
+            android:text="生成壁纸" android:textSize="16sp" android:enabled="false" />
+        <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:layout_marginTop="12dp"
+            android:visibility="gone" />
+        <TextView android:id="@+id/tvResult" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="16dp"
+            android:textSize="14sp" android:textColor="#333" android:gravity="center" />
+    </LinearLayout>
+</ScrollView>
