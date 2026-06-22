@@ -22,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private var sourceBitmap: Bitmap? = null
     private var fillColor = Color.BLACK
+    private var fillColor2 = Color.BLACK
     private var gradientPercent = 10
     private var generateJob: Job? = null
 
@@ -79,38 +80,51 @@ class MainActivity : AppCompatActivity() {
         binding.previewView.setBitmap(bmp)
         updatePreviewRatio()
 
-        // Compute fill colour
+        // Compute fill colours (same as WallpaperExtender logic for preview accuracy)
         CoroutineScope(Dispatchers.Default).launch {
-            val topH = minOf(30, bmp.height)
-            val top = Bitmap.createBitmap(bmp, 0, 0, bmp.width, topH)
-            val small = Bitmap.createScaledBitmap(top,
-                (bmp.width * 0.1f).toInt().coerceAtLeast(1),
+            val h = bmp.height; val w = bmp.width
+            val zone = (h * 0.1f).toInt(); val halfZone = zone / 2
+            // Base fill from top 30px
+            val topH = minOf(30, h)
+            val top = Bitmap.createBitmap(bmp, 0, 0, w, topH)
+            val small = Bitmap.createScaledBitmap(top, (w * 0.1f).toInt().coerceAtLeast(1),
                 (topH * 0.1f).toInt().coerceAtLeast(1), true)
             val c = medianColor(small)
             top.recycle(); small.recycle()
+            // Brightness match to boundary
+            fun matchLum(y: Int): Int {
+                val t = maxOf(0, y - 10); val hh = minOf(20, h - t)
+                if (hh <= 0) return c
+                val strip = Bitmap.createBitmap(bmp, 0, t, w, hh)
+                val px = IntArray(w * hh); strip.getPixels(px, 0, w, 0, 0, w, hh)
+                var sum = 0f; for (p in px) sum += 0.299f*(p shr 16 and 0xFF)+0.587f*(p shr 8 and 0xFF)+0.114f*(p and 0xFF)
+                val bLum = sum / px.size / 255f; strip.recycle()
+                val bR=c shr 16 and 0xFF; val bG=c shr 8 and 0xFF; val bB=c and 0xFF
+                val fRf=bR/255f;val fGf=bG/255f;val fBf=bB/255f
+                val mx=maxOf(fRf,fGf,fBf);val mn=minOf(fRf,fGf,fBf);val d=mx-mn
+                var fH=0f;var fS=0f
+                if(d>0f){fS=if((mx+mn)/2f>.5f)d/(2f-mx-mn) else d/(mx+mn)
+                    fH=if(mx==fRf)((fGf-fBf)/d+(if(fGf<fBf)6f else 0f))/6f
+                    else if(mx==fGf)((fBf-fRf)/d+2f)/6f else((fRf-fGf)/d+4f)/6f}
+                val q=if(bLum<.5f)bLum*(1f+fS)else bLum+fS-bLum*fS;val p=2f*bLum-q
+                fun hue(h:Float):Int{var t=h;if(t<0f)t+=1f;if(t>1f)t-=1f
+                    return (if(t<1f/6f)p+(q-p)*6f*t else if(t<.5f)q else if(t<2f/3f)p+(q-p)*(2f/3f-t)*6f else p).times(255f).roundToInt().coerceIn(0,255)}
+                return 0xFF shl 24 or (hue(fH+1f/3f) shl 16) or (hue(fH) shl 8) or hue(fH-1f/3f)
+            }
+            val topFill = matchLum(zone)
+            val botFill = matchLum(h - halfZone)
             withContext(Dispatchers.Main) {
-                fillColor = c
-                binding.previewView.setFillColor(c)
+                fillColor = topFill
+                fillColor2 = botFill
+                binding.previewView.setFillColor(topFill)
                 updatePreviewColors()
             }
         }
     }
 
     private fun updatePreviewColors() {
-        if (sourceBitmap == null) return
-        val bmp = sourceBitmap!!
-        CoroutineScope(Dispatchers.Default).launch {
-            val h = bmp.height; val zone = (h * 0.1f).toInt()
-            val halfZone = zone / 2
-            val c2 = if (binding.rgPosition.checkedRadioButtonId == R.id.rbCenter && !binding.cbSameColor.isChecked) {
-                val top2 = maxOf(0, h - halfZone - 10); val hh = minOf(20, h - top2)
-                val strip = Bitmap.createBitmap(bmp, 0, top2, bmp.width, hh)
-                medianColor(strip)
-            } else fillColor
-            withContext(Dispatchers.Main) {
-                binding.previewView.setFillColor2(c2, binding.cbSameColor.isChecked)
-            }
-        }
+        val same = binding.cbSameColor.isChecked
+        binding.previewView.setFillColor2(if (same) fillColor else fillColor2, same)
     }
 
     private fun updatePreviewRatio() {
@@ -158,7 +172,7 @@ class MainActivity : AppCompatActivity() {
                     R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
                 }
                 val sameColor = binding.cbSameColor.isChecked
-                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor)
+                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fillColor2)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()
