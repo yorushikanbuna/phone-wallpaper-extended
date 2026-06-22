@@ -73,7 +73,38 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   }
   allR.sort((a, b) => a - b); allG.sort((a, b) => a - b); allB.sort((a, b) => a - b);
   const mid = Math.floor(allR.length / 2);
-  const fR = allR[mid], fG = allG[mid], fB = allB[mid];
+  let fR = allR[mid], fG = allG[mid], fB = allB[mid];
+
+  // ── Brightness match: adjust fill L to match gradient boundary ──
+  const boundaryY = Math.min(modifyZone, height - 1);
+  const boundaryRaw = await sharp(inputPath)
+    .extract({ left: 0, top: Math.max(0, boundaryY - 10), width, height: Math.min(20, height - boundaryY + 10) })
+    .removeAlpha().raw().toBuffer();
+  let bSumR = 0, bSumG = 0, bSumB = 0;
+  for (let i = 0; i < boundaryRaw.length; i += 3) {
+    bSumR += boundaryRaw[i]; bSumG += boundaryRaw[i + 1]; bSumB += boundaryRaw[i + 2];
+  }
+  const bCount = boundaryRaw.length / 3;
+  const bR = Math.round(bSumR / bCount), bG = Math.round(bSumG / bCount), bB = Math.round(bSumB / bCount);
+
+  // RGB → HSL, match L, HSL → RGB
+  const rgbToHsl = (r,g,b) => {
+    r/=255;g/=255;b/=255; const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+    let h=0,s=0,l=(mx+mn)/2;
+    if(d!==0){s=l>.5?d/(2-mx-mn):d/(mx+mn);
+      h=mx===r?((g-b)/d+(g<b?6:0))/6:mx===g?((b-r)/d+2)/6:((r-g)/d+4)/6;}
+    return[h,s,l];
+  };
+  const hslToRgb = (h,s,l) => {
+    const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<.5)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+    if(s===0)return[Math.round(l*255),Math.round(l*255),Math.round(l*255)];
+    const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q;
+    return[Math.round(hue2rgb(p,q,h+1/3)*255),Math.round(hue2rgb(p,q,h)*255),Math.round(hue2rgb(p,q,h-1/3)*255)];
+  };
+
+  const [fh,fs] = rgbToHsl(fR,fG,fB);
+  const [,,bl] = rgbToHsl(bR,bG,bB);
+  [fR,fG,fB] = hslToRgb(fh, fs, bl); // fill hue/sat + boundary lightness
 
   // ── 2. Pure solid fill background ──
   const fillBg = await sharp({
