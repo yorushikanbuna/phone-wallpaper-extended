@@ -43,6 +43,15 @@ class MainActivity : AppCompatActivity() {
         binding.etPhoneWidth.addTextChangedListener(resolutionWatcher)
         binding.etPhoneHeight.addTextChangedListener(resolutionWatcher)
 
+        binding.rgPosition.setOnCheckedChangeListener { _, id ->
+            val pos = when (id) {
+                R.id.rbCenter -> "center"
+                R.id.rbBottom -> "bottom"
+                else -> "top"
+            }
+            binding.previewView.setPosition(pos)
+        }
+
         binding.sbModifyZone.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 gradientPercent = progress.coerceIn(1, 100)
@@ -105,7 +114,10 @@ class MainActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx)
+                val pos = when (binding.rgPosition.checkedRadioButtonId) {
+                    R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
+                }
+                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     binding.tvResult.text =

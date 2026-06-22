@@ -140,6 +140,59 @@
                         android:background="@drawable/input_field_bg" />
                 </LinearLayout>
 
+                <!-- Position selector -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="延展位置"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_muted"
+                        android:layout_marginEnd="12dp" />
+
+                    <RadioGroup
+                        android:id="@+id/rgPosition"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <RadioButton
+                            android:id="@+id/rbTop"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="上方"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary"
+                            android:checked="true" />
+
+                        <RadioButton
+                            android:id="@+id/rbCenter"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="居中"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary" />
+
+                        <RadioButton
+                            android:id="@+id/rbBottom"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="下方"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary" />
+                    </RadioGroup>
+                </LinearLayout>
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

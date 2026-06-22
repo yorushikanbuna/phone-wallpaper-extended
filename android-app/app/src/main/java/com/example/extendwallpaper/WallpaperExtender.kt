@@ -9,13 +9,15 @@ object WallpaperExtender {
 
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
-    fun extend(source: Bitmap, phoneW: Int, phoneH: Int, modifyZone: Int = -1): Result {
+    fun extend(source: Bitmap, phoneW: Int, phoneH: Int, modifyZone: Int = -1,
+               position: String = "top"): Result {
         val w = source.width; val h = source.height
         val targetH = (w / (phoneW.toFloat() / phoneH)).roundToInt()
         val ext = targetH - h
         if (ext <= 0) return Result(source, Color.TRANSPARENT, 0)
 
         val zone = if (modifyZone > 0) modifyZone else (h * 0.1f).roundToInt()
+        val topOffset = when (position) { "bottom" -> ext; "center" -> ext / 2; else -> ext }
 
         // 1. Fill colour from blurred top 30px
         val topH = min(FILL_SAMPLE_H, h)
@@ -42,12 +44,12 @@ object WallpaperExtender {
             if (alpha <= 0) continue
             if (alpha >= 255) {
                 val row = Bitmap.createBitmap(pixels, y * w, w, w, 1, Bitmap.Config.ARGB_8888)
-                canvas.drawBitmap(row, 0f, (ext + y).toFloat(), null)
+                canvas.drawBitmap(row, 0f, (topOffset + y).toFloat(), null)
                 row.recycle()
             } else {
                 paint.alpha = alpha
                 val row = Bitmap.createBitmap(pixels, y * w, w, w, 1, Bitmap.Config.ARGB_8888)
-                canvas.drawBitmap(row, 0f, (ext + y).toFloat(), paint)
+                canvas.drawBitmap(row, 0f, (topOffset + y).toFloat(), paint)
                 row.recycle()
             }
         }
