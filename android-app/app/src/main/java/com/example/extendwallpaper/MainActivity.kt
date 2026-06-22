@@ -81,42 +81,10 @@ class MainActivity : AppCompatActivity() {
         binding.previewView.setBitmap(bmp)
         updatePreviewRatio()
 
-        // Compute fill colours — blur+median per boundary, then HSL brightness match
+        // Compute preview fill colours — blur+median only (HSL matching done at generate)
         CoroutineScope(Dispatchers.Default).launch {
-            val h = bmp.height; val w = bmp.width
-            fun sample(y: Int, hh: Int): Int {
-                val t = maxOf(0, y - hh/2); val sh = minOf(hh, h - t)
-                if (sh <= 0) return Color.BLACK
-                val strip = Bitmap.createBitmap(bmp, 0, t, w, sh)
-                val small = Bitmap.createScaledBitmap(strip, (w*0.05f).toInt().coerceAtLeast(1),
-                    (sh*0.05f).toInt().coerceAtLeast(1), true)
-                val c = medianColor(small); strip.recycle(); small.recycle(); return c
-            }
-            fun hslMatch(base: Int, y: Int): Int {
-                val t = maxOf(0, y - 15); val hh = minOf(30, h - t)
-                if (hh <= 0) return base
-                val strip = Bitmap.createBitmap(bmp, 0, t, w, hh)
-                val px = IntArray(w*hh); strip.getPixels(px,0,w,0,0,w,hh); strip.recycle()
-                var sR=0; var sG=0; var sB=0
-                for(p in px){sR+=p shr 16 and 0xFF; sG+=p shr 8 and 0xFF; sB+=p and 0xFF}
-                val n=px.size; val bR=sR/n; val bG=sG/n; val bB=sB/n
-                val bL=(maxOf(bR,bG,bB)+minOf(bR,bG,bB))/2.0/255.0
-                val fR=base shr 16 and 0xFF; val fG=base shr 8 and 0xFF; val fB=base and 0xFF
-                val rf=fR/255.0; val gf=fG/255.0; val bf=fB/255.0
-                val mx=maxOf(rf,gf,bf); val mn=minOf(rf,gf,bf); val d=mx-mn
-                var fH=0.0; var fS=0.0
-                if(d>0){val l=(mx+mn)/2.0; fS=if(l>.5)d/(2.0-mx-mn) else d/(mx+mn)
-                    fH=if(mx==rf)((gf-bf)/d+(if(gf<bf)6.0 else 0.0))/6.0
-                    else if(mx==gf)((bf-rf)/d+2.0)/6.0 else((rf-gf)/d+4.0)/6.0}
-                val q=if(bL<.5)bL*(1.0+fS) else bL+fS-bL*fS; val p=2.0*bL-q
-                fun hue(h:Double):Int{var th=h;if(th<0)th+=1.0;if(th>1)th-=1.0
-                    return ((if(th<1.0/6.0)p+(q-p)*6.0*th else if(th<.5)q else if(th<2.0/3.0)p+(q-p)*(2.0/3.0-th)*6.0 else p)*255.0).roundToInt().coerceIn(0,255)}
-                return 0xFF shl 24 or (hue(fH+1.0/3.0) shl 16) or (hue(fH) shl 8) or hue(fH-1.0/3.0)
-            }
-            val topBase = sample(0, 30)
-            val botBase = sample(h - 15, 20)
-            val topC = hslMatch(topBase, 15)
-            val botC = hslMatch(botBase, h - 15)
+            val topC = sampleColor(bmp, 0, 30)
+            val botC = sampleColor(bmp, bmp.height - 15, 20)
             withContext(Dispatchers.Main) {
                 fillColor = topC
                 fillColor2 = botC
@@ -171,7 +139,6 @@ class MainActivity : AppCompatActivity() {
             R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
         }
         val sameColor = binding.cbSameColor.isChecked
-        val fc2 = if (sameColor) fillColor else fillColor2
 
         binding.btnGenerate.isEnabled = false
         binding.btnGenerate.alpha = 0.5f
@@ -179,7 +146,29 @@ class MainActivity : AppCompatActivity() {
 
         generateJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fc2)
+                // Compute fill colours from FULL-RES bitmap with HSL matching at actual gradient endpoints
+                val zone = modifyPx
+                val halfZone = zone / 2
+
+                // Sample base hue/saturation from image edges
+                val topSampleY = when (pos) { "bottom" -> bmp.height - 15; else -> 0 }
+                val topSampleH = when (pos) { "bottom" -> 20; else -> 30 }
+                val topBase = sampleColor(bmp, topSampleY, topSampleH)
+                val botBase = sampleColor(bmp, bmp.height - 15, 20)
+
+                // Brightness reference at gradient endpoints (where fade meets opaque image)
+                val refTop = when (pos) {
+                    "bottom" -> bmp.height - zone
+                    "center" -> halfZone
+                    else -> zone
+                }
+                val refBot = bmp.height - halfZone  // only used in center mode
+
+                val topC = hslMatchColor(bmp, topBase, refTop)
+                val botC = if (pos == "center") hslMatchColor(bmp, botBase, refBot) else topC
+                val fc2 = if (sameColor) topC else botC
+
+                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, topC, fc2)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()
@@ -229,6 +218,52 @@ class MainActivity : AppCompatActivity() {
         r.sort(); g.sort(); b.sort()
         val m = n / 2
         return 0xFF shl 24 or (r[m] shl 16) or (g[m] shl 8) or b[m]
+    }
+
+    // ── Fill-colour helpers (reusable across preview & generation) ──
+
+    /** Blur+median of a strip at [y] of height [hh] — captures dominant hue/saturation. */
+    private fun sampleColor(bmp: Bitmap, y: Int, hh: Int): Int {
+        val h = bmp.height; val w = bmp.width
+        val t = maxOf(0, y - hh / 2); val sh = minOf(hh, h - t)
+        if (sh <= 0) return Color.BLACK
+        val strip = Bitmap.createBitmap(bmp, 0, t, w, sh)
+        val small = Bitmap.createScaledBitmap(strip, (w * 0.05f).toInt().coerceAtLeast(1),
+            (sh * 0.05f).toInt().coerceAtLeast(1), true)
+        val c = medianColor(small); strip.recycle(); small.recycle(); return c
+    }
+
+    /** Preserve hue+saturation of [base], replace brightness with the 30-row strip at [refY]. */
+    private fun hslMatchColor(bmp: Bitmap, base: Int, refY: Int): Int {
+        val h = bmp.height; val w = bmp.width
+        val t = maxOf(0, refY - 15); val hh = minOf(30, h - t)
+        if (hh <= 0) return base
+        val strip = Bitmap.createBitmap(bmp, 0, t, w, hh)
+        val px = IntArray(w * hh); strip.getPixels(px, 0, w, 0, 0, w, hh); strip.recycle()
+        var sR = 0; var sG = 0; var sB = 0
+        for (p in px) { sR += p shr 16 and 0xFF; sG += p shr 8 and 0xFF; sB += p and 0xFF }
+        val n = px.size; val bR = sR / n; val bG = sG / n; val bB = sB / n
+        val bL = (maxOf(bR, bG, bB) + minOf(bR, bG, bB)) / 2.0 / 255.0
+        val fR = base shr 16 and 0xFF; val fG = base shr 8 and 0xFF; val fB = base and 0xFF
+        val rf = fR / 255.0; val gf = fG / 255.0; val bf = fB / 255.0
+        val mx = maxOf(rf, gf, bf); val mn = minOf(rf, gf, bf); val d = mx - mn
+        var fH = 0.0; var fS = 0.0
+        if (d > 0) {
+            val l = (mx + mn) / 2.0
+            fS = if (l > .5) d / (2.0 - mx - mn) else d / (mx + mn)
+            fH = if (mx == rf) ((gf - bf) / d + (if (gf < bf) 6.0 else 0.0)) / 6.0
+            else if (mx == gf) ((bf - rf) / d + 2.0) / 6.0
+            else ((rf - gf) / d + 4.0) / 6.0
+        }
+        val q = if (bL < .5) bL * (1.0 + fS) else bL + fS - bL * fS; val p = 2.0 * bL - q
+        fun hue(h: Double): Int {
+            var th = h; if (th < 0) th += 1.0; if (th > 1) th -= 1.0
+            return ((if (th < 1.0 / 6.0) p + (q - p) * 6.0 * th
+            else if (th < .5) q
+            else if (th < 2.0 / 3.0) p + (q - p) * (2.0 / 3.0 - th) * 6.0
+            else p) * 255.0).roundToInt().coerceIn(0, 255)
+        }
+        return 0xFF shl 24 or (hue(fH + 1.0 / 3.0) shl 16) or (hue(fH) shl 8) or hue(fH - 1.0 / 3.0)
     }
 
     override fun onDestroy() {
