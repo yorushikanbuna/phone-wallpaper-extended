@@ -1,4 +1,0 @@
-#!/bin/sh
-# Minimal gradle wrapper script for CI
-export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle}"
-exec gradle "$@"
