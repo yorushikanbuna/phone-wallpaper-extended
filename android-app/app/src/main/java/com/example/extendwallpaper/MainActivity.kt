@@ -81,29 +81,24 @@ class MainActivity : AppCompatActivity() {
         binding.previewView.setBitmap(bmp)
         updatePreviewRatio()
 
-        // Compute fill colours with HSL brightness matching
+        // Compute fill colours with HSL matching (independent top/bottom base hues)
         CoroutineScope(Dispatchers.Default).launch {
-            val h = bmp.height; val w = bmp.width; val zone = (h * 0.1f).toInt()
-            // Base fill from blurred top 30px
-            val topH = minOf(30, h)
-            val top = Bitmap.createBitmap(bmp, 0, 0, w, topH)
-            val blurred = Bitmap.createScaledBitmap(top, (w*0.05f).toInt().coerceAtLeast(1),
-                (topH*0.05f).toInt().coerceAtLeast(1), true)
-            val base = medianColor(blurred)
-            top.recycle(); blurred.recycle()
-            // HSL brightness-match to boundary
-            fun matchLum(y: Int): Int {
+            val h = bmp.height; val w = bmp.width; val zone = (h * 0.1f).toInt(); val halfZone = zone / 2
+            fun blurMedian(t: Int, hh: Int): Int {
+                val strip = Bitmap.createBitmap(bmp, 0, maxOf(0, t), w, minOf(hh, h - t))
+                val small = Bitmap.createScaledBitmap(strip, (w*0.05f).toInt().coerceAtLeast(1),
+                    (strip.height*0.05f).toInt().coerceAtLeast(1), true)
+                val c = medianColor(small); strip.recycle(); small.recycle(); return c
+            }
+            fun hslMatch(base: Int, y: Int): Int {
                 val t = maxOf(0, y - 15); val hh = minOf(30, h - t)
                 if (hh <= 0) return base
                 val strip = Bitmap.createBitmap(bmp, 0, t, w, hh)
-                val px = IntArray(w*hh); strip.getPixels(px,0,w,0,0,w,hh)
+                val px = IntArray(w*hh); strip.getPixels(px,0,w,0,0,w,hh); strip.recycle()
                 var sR=0; var sG=0; var sB=0
                 for(p in px){sR+=p shr 16 and 0xFF; sG+=p shr 8 and 0xFF; sB+=p and 0xFF}
-                val n=px.size; strip.recycle()
-                // Boundary avg → HSL lightness
-                val bR=sR/n; val bG=sG/n; val bB=sB/n
-                val bMx=maxOf(bR,bG,bB); val bMn=minOf(bR,bG,bB); val bL=(bMx+bMn)/2.0/255.0
-                // Fill → HSL hue+saturation
+                val n=px.size; val bR=sR/n; val bG=sG/n; val bB=sB/n
+                val bL=(maxOf(bR,bG,bB)+minOf(bR,bG,bB))/2.0/255.0
                 val fR=base shr 16 and 0xFF; val fG=base shr 8 and 0xFF; val fB=base and 0xFF
                 val rf=fR/255.0; val gf=fG/255.0; val bf=fB/255.0
                 val mx=maxOf(rf,gf,bf); val mn=minOf(rf,gf,bf); val d=mx-mn
@@ -116,9 +111,10 @@ class MainActivity : AppCompatActivity() {
                     return ((if(th<1.0/6.0)p+(q-p)*6.0*th else if(th<.5)q else if(th<2.0/3.0)p+(q-p)*(2.0/3.0-th)*6.0 else p)*255.0).roundToInt().coerceIn(0,255)}
                 return 0xFF shl 24 or (hue(fH+1.0/3.0) shl 16) or (hue(fH) shl 8) or hue(fH-1.0/3.0)
             }
-            val halfZone = zone / 2
-            val topC = matchLum(halfZone)  // top gradient end
-            val botC = matchLum(h - halfZone) // bottom gradient end (center mode)
+            val topBase = blurMedian(0, 30)
+            val botBase = blurMedian(h - halfZone, 20)
+            val topC = hslMatch(topBase, halfZone)
+            val botC = hslMatch(botBase, h - halfZone)
             withContext(Dispatchers.Main) {
                 fillColor = topC
                 fillColor2 = botC
