@@ -38,6 +38,8 @@ jobs:
 
       - name: Build release APK
         working-directory: android-app
+        env:
+          VERSION_CODE: ${{ github.run_number }}
         run: gradle assembleRelease
 
       - name: Upload APK artifact
@@ -60,8 +62,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "v1.0.${{ github.run_number }}"
-          tag_name: "v1.0.${{ github.run_number }}"
+          name: "v1.${{ github.run_number }}"
+          tag_name: "v1.${{ github.run_number }}"
           files: "*.apk"
           generate_release_notes: true
           draft: false

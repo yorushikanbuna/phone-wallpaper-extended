@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.extendwallpaper"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = "1.${System.getenv("VERSION_CODE") ?: "0"}"
     }
 
     buildFeatures { viewBinding = true }
