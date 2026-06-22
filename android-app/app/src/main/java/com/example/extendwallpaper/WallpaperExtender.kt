@@ -40,7 +40,10 @@ object WallpaperExtender {
 
         fun alphaFromTop(dist: Int, range: Int): Int {
             val t = (dist.toFloat() / range).coerceAtMost(1f)
-            return (255 * ((exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / denom)).roundToInt().coerceIn(0, 255)
+            val curve = (exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / denom
+            // Linear tail: last 25% blends to 1.0 to avoid sharp cutoff
+            val linear = maxOf(0f, (t - 0.75f) / 0.25f)
+            return (255 * (curve * (1 - linear) + linear)).roundToInt().coerceIn(0, 255)
         }
 
         for (y in 0 until h) {

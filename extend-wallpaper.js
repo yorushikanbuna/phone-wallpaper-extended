@@ -89,7 +89,9 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   for (let y = 0; y < height; y++) {
     const t = Math.min(y / modifyZone, 1);
     const curve = (Math.exp(-expK * (1 - t)) - Math.exp(-expK)) / denom;
-    const alpha = Math.round(255 * curve);
+    // Linear tail: last 25% of zone blends in linearly to avoid sharp cutoff
+    const linear = Math.max(0, (t - 0.75) / 0.25);
+    const alpha = Math.round(255 * (curve * (1 - linear) + 1 * linear));
 
     for (let x = 0; x < width; x++) {
       const si = (y * width + x) * 3;
