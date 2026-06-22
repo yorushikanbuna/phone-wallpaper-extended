@@ -22,8 +22,18 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("release.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "wallpaper"
+            keyAlias = "release"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "wallpaper"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
         }
     }

@@ -1,9 +1,12 @@
-name: Build APK
+name: Build & Release APK
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -18,17 +21,48 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Generate keystore
+        working-directory: android-app
+        run: |
+          keytool -genkey -v \
+            -keystore release.keystore \
+            -alias release \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass wallpaper -keypass wallpaper \
+            -dname "CN=WallpaperExtend,O=Extend,C=CN"
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.7
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: android-app
-        run: gradle assembleDebug
+        run: gradle assembleRelease
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wallpaper-extend-debug
-          path: android-app/app/build/outputs/apk/debug/*.apk
+          name: wallpaper-extend-release
+          path: android-app/app/build/outputs/apk/release/*.apk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: wallpaper-extend-release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v1.0.${{ github.run_number }}"
+          tag_name: "v1.0.${{ github.run_number }}"
+          files: "*.apk"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
