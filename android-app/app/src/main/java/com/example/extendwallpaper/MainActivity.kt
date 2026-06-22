@@ -175,13 +175,13 @@ class MainActivity : AppCompatActivity() {
                 }
                 val sameColor = binding.cbSameColor.isChecked
                 val fc2 = if (sameColor) fillColor else fillColor2
-                android.util.Log.d("Extend", "generate: sameColor=$sameColor fillColor=#${Integer.toHexString(fillColor)} fillColor2=#${Integer.toHexString(fillColor2)} fc2=#${Integer.toHexString(fc2)}")
                 val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fc2)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()
+                    val same = binding.cbSameColor.isChecked
                     binding.tvResult.text =
-                        "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px)"
+                        "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px) same=$same top=#${Integer.toHexString(fillColor).takeLast(6)} bot=#${Integer.toHexString(fillColor2).takeLast(6)}"
                     binding.btnGenerate.isEnabled = true
                     binding.btnGenerate.alpha = 1f
                     binding.progressBar.visibility = android.view.View.GONE
