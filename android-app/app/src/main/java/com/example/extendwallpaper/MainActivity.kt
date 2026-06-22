@@ -180,7 +180,7 @@ class MainActivity : AppCompatActivity() {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()
                     binding.tvResult.text =
-                        "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px) same=${binding.cbSameColor.isChecked}"
+                        "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px)"
                     binding.btnGenerate.isEnabled = true
                     binding.btnGenerate.alpha = 1f
                     binding.progressBar.visibility = android.view.View.GONE
