@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         val modifyPx = (bmp.height * gradientPercent / 100f).roundToInt()
 
         binding.btnGenerate.isEnabled = false
-        binding.btnGenerate.text = "处理中…"
+        binding.btnGenerate.alpha = 0.5f
         binding.progressBar.visibility = android.view.View.VISIBLE
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -100,15 +100,15 @@ class MainActivity : AppCompatActivity() {
                     saveToGallery(result.bitmap)
                     binding.tvResult.text =
                         "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px)"
-                    binding.btnGenerate.text = "生成壁纸"
                     binding.btnGenerate.isEnabled = true
+                    binding.btnGenerate.alpha = 1f
                     binding.progressBar.visibility = android.view.View.GONE
                     Toast.makeText(this@MainActivity, "已保存到相册", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    binding.btnGenerate.text = "生成壁纸"
                     binding.btnGenerate.isEnabled = true
+                    binding.btnGenerate.alpha = 1f
                     binding.progressBar.visibility = android.view.View.GONE
                     Toast.makeText(this@MainActivity, "处理失败: ${e.message}", Toast.LENGTH_LONG).show()
                 }

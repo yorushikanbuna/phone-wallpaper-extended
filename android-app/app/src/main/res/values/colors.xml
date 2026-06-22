@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Claymorphism palette — playful violet + pink -->
+    <color name="bg">#F4F1FA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_muted">#F0EDF6</color>
+    <color name="text_primary">#332F3A</color>
+    <color name="text_muted">#635F69</color>
+    <color name="text_on_primary">#FFFFFF</color>
+    <color name="accent_primary">#7C3AED</color>
+    <color name="accent_secondary">#DB2777</color>
+    <color name="accent_light">#A78BFA</color>
+    <color name="success">#10B981</color>
+    <color name="border">#DDD6E8</color>
+    <color name="shadow_inner">#D4CCE0</color>
+    <color name="ic_launcher_background">#1a1a2e</color>
+</resources>
