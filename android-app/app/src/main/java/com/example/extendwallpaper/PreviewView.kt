@@ -90,13 +90,22 @@ class PreviewView @JvmOverloads constructor(
                 canvas.drawBitmap(src, null, dstRect, paint)
                 // bottom ext bar
                 canvas.drawRect(0f, imgTop + imgH + gap, vw, imgTop + imgH + gap + halfExt, paint)
-                // gradient from top ext edge (fill→transparent)
-                val fadeH = imgH * fraction
+                // top gradient (fill→transparent)
+                var fadeH = imgH * fraction
                 if (fadeH > 0) {
                     paint.shader = LinearGradient(0f, imgTop, 0f, imgTop + fadeH,
                         intArrayOf(Color.argb(255, r, g, b), Color.argb(0, r, g, b)),
                         floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
                     canvas.drawRect(0f, imgTop, vw, imgTop + fadeH, paint)
+                    paint.shader = null
+                }
+                // bottom gradient (transparent→fill)
+                if (fadeH > 0) {
+                    val botY = imgTop + imgH - fadeH
+                    paint.shader = LinearGradient(0f, botY, 0f, botY + fadeH,
+                        intArrayOf(Color.argb(0, r, g, b), Color.argb(255, r, g, b)),
+                        floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
+                    canvas.drawRect(0f, botY, vw, botY + fadeH, paint)
                     paint.shader = null
                 }
             }

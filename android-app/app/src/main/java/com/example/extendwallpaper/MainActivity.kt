@@ -64,7 +64,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onImagePicked(uri: Uri) {
-        val bmp = loadBitmap(uri) ?: return
+        sourceUri = uri
+        val bmp = loadBitmap(uri, sample = true) ?: return
         sourceBitmap = bmp
         binding.tvImageInfo.text = "已选择: ${bmp.width} × ${bmp.height}"
         binding.btnGenerate.isEnabled = true
@@ -95,15 +96,17 @@ class MainActivity : AppCompatActivity() {
         if (ph > 0) binding.previewView.setPhoneRatio(pw / ph)
     }
 
-    private fun loadBitmap(uri: Uri): Bitmap? = try {
+    private var sourceUri: Uri? = null
+
+    private fun loadBitmap(uri: Uri, sample: Boolean = true): Bitmap? = try {
         contentResolver.openInputStream(uri)?.use { stream ->
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeStream(stream, null, opts)
             stream.close()
 
-            // Downsample large images to ~2048px max dimension
             val maxDim = maxOf(opts.outWidth, opts.outHeight)
-            val sampleSize = if (maxDim > 2048) (maxDim / 2048).coerceAtMost(8) else 1
+            val sampleSize = if (sample && maxDim > 2048)
+                (maxDim / 2048).coerceAtMost(8) else 1
 
             contentResolver.openInputStream(uri)?.use { s ->
                 BitmapFactory.decodeStream(s, null,
@@ -115,7 +118,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun generate() {
-        val bmp = sourceBitmap ?: return
+        // Reload at full resolution for output quality
+        val bmp = sourceUri?.let { loadBitmap(it, sample = false) } ?: sourceBitmap ?: return
         val pw = binding.etPhoneWidth.text.toString().toIntOrNull() ?: 1216
         val ph = binding.etPhoneHeight.text.toString().toIntOrNull() ?: 2640
         updatePreviewRatio()
@@ -133,6 +137,7 @@ class MainActivity : AppCompatActivity() {
                 val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
+                    if (bmp != sourceBitmap) bmp.recycle()
                     binding.tvResult.text =
                         "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px)"
                     binding.btnGenerate.isEnabled = true
