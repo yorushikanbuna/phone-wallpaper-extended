@@ -112,9 +112,9 @@ class MainActivity : AppCompatActivity() {
                 return 0xFF shl 24 or (hue(fH+1.0/3.0) shl 16) or (hue(fH) shl 8) or hue(fH-1.0/3.0)
             }
             val topBase = blurMedian(0, 30)
-            val botBase = blurMedian(h - halfZone, 20)
+            val botBase = blurMedian(h - 15, 20)
             val topC = hslMatch(topBase, halfZone)
-            val botC = hslMatch(botBase, h - halfZone)
+            val botC = hslMatch(botBase, h - 15)
             withContext(Dispatchers.Main) {
                 fillColor = topC
                 fillColor2 = botC
