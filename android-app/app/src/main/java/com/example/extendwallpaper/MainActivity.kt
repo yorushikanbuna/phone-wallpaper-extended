@@ -166,17 +166,19 @@ class MainActivity : AppCompatActivity() {
         updatePreviewRatio()
         val modifyPx = (bmp.height * gradientPercent / 100f).roundToInt()
 
+        // Read UI state on main thread (not from Dispatchers.IO)
+        val pos = when (binding.rgPosition.checkedRadioButtonId) {
+            R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
+        }
+        val sameColor = binding.cbSameColor.isChecked
+        val fc2 = if (sameColor) fillColor else fillColor2
+
         binding.btnGenerate.isEnabled = false
         binding.btnGenerate.alpha = 0.5f
         binding.progressBar.visibility = android.view.View.VISIBLE
 
         generateJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                val pos = when (binding.rgPosition.checkedRadioButtonId) {
-                    R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
-                }
-                val sameColor = binding.cbSameColor.isChecked
-                val fc2 = if (sameColor) fillColor else fillColor2
                 val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fc2)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
