@@ -1,8 +1,7 @@
 const sharp = require('sharp');
 
 async function makeLR(origPath, extPath, outPath) {
-  // Scale each to 300px wide, side by side = 600px total
-  const W = 300;
+  const W = 400; // each side 400px → 802px total
   const gap = 2;
 
   const orig = await sharp(origPath).metadata();
@@ -15,7 +14,7 @@ async function makeLR(origPath, extPath, outPath) {
   const extScaled = await sharp(extPath).resize(W, eH).png().toBuffer();
 
   const totalW = W + gap + W;
-  const bg = { r: 20, g: 20, b: 28 };
+  const bg = { r: 18, g: 18, b: 24 };
 
   await sharp({
     create: { width: totalW, height: maxH, channels: 3, background: bg }
