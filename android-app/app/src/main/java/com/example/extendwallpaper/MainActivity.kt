@@ -2,6 +2,7 @@ package com.example.extendwallpaper
 
 import android.content.ContentValues
 import android.graphics.*
+import kotlin.math.roundToInt
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -30,9 +31,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Get GradientOverlay from layout
-        overlay = binding.gradientOverlay as? GradientOverlay
-            ?: GradientOverlay(this).also { binding.gradientOverlay = it }
+        overlay = binding.gradientOverlay
 
         binding.btnPickImage.setOnClickListener { pickImage.launch("image/*") }
 
