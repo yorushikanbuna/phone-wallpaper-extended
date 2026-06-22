@@ -17,7 +17,7 @@ Extend image height with a seamless transparency-gradient transition — adapt w
 │   solid fill background  │  ← pure colour from blurred image top
 │   (extension + original) │
 ├──────────────────────────┤
-│   original image with    │  ← power curve alpha: slow start, fast finish
+│   original image with    │  ← S-curve alpha: slow start, fast finish
 │   transparency gradient  │
 │   (top ~10% of height)   │
 ├──────────────────────────┤
@@ -47,7 +47,7 @@ node extend-wallpaper.js <input> [output] --target <WxH>
 | `--ratio N` | — | Alt: aspect ratio |
 | `--modify-zone N` | `height × 0.1` | Gradient zone px |
 | `--fill-blur N` | `80` | Fill colour blur sigma |
-| `--curve-p N` | `3` | power curve steepness |
+| `--exp-k N` | `3` | S-curve steepness |
 
 **Examples**
 
@@ -63,7 +63,7 @@ node extend-wallpaper.js art.png wallpaper.png --target 1080x2400
 for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
 
 # Tune for darker fill / smoother transition
-node extend-wallpaper.js photo.png --target 1216x2640 --curve-p 5 --modify-zone 300
+node extend-wallpaper.js photo.png --target 1216x2640 --exp-k 5 --modify-zone 300
 ```
 
 ### API
@@ -79,7 +79,7 @@ await extendImage('in.png', 'out.png', {
   target:     '1216x2640',
   modifyZone: 300,   // px of transparency gradient
   fillBlur:   100,   // blur sigma for fill colour
-  curveP:       5,     // power curve steepness
+  expK:       5,     // S-curve steepness
 });
 ```
 
@@ -87,8 +87,8 @@ await extendImage('in.png', 'out.png', {
 
 | Symptom | Fix |
 |---------|-----|
-| Gradient starts too fast | Increase `--curve-p` |
-| Gradient finishes too abruptly | Decrease `--curve-p` |
+| Gradient starts too fast | Increase `--exp-k` |
+| Gradient finishes too abruptly | Decrease `--exp-k` |
 | Gradient zone too short | Increase `--modify-zone` |
 | Fill colour too light | Increase `--fill-blur` |
 
@@ -132,7 +132,7 @@ node extend-wallpaper.js <输入> [输出] --target <宽x高>
 | `--ratio N` | — | 或指定宽高比 |
 | `--modify-zone N` | `高度 × 0.1` | 渐变区像素数 |
 | `--fill-blur N` | `80` | 填充色模糊强度 |
-| `--curve-p N` | `3` | S 曲线陡峭度 |
+| `--exp-k N` | `3` | S 曲线陡峭度 |
 
 **使用实例**
 
@@ -148,7 +148,7 @@ node extend-wallpaper.js art.png wallpaper.png --target 1080x2400
 for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
 
 # 调参：更深填充色 + 更平滑过渡
-node extend-wallpaper.js photo.png --target 1216x2640 --curve-p 5 --modify-zone 300
+node extend-wallpaper.js photo.png --target 1216x2640 --exp-k 5 --modify-zone 300
 ```
 
 ### API 调用
@@ -164,7 +164,7 @@ await extendImage('in.png', 'out.png', {
   target:     '1216x2640',
   modifyZone: 300,   // 透明度渐变像素数
   fillBlur:   100,   // 填充色模糊强度
-  curveP:       5,     // S 曲线陡峭度
+  expK:       5,     // S 曲线陡峭度
 });
 ```
 
@@ -172,8 +172,8 @@ await extendImage('in.png', 'out.png', {
 
 | 现象 | 解决 |
 |------|------|
-| 渐变启动太快 | 增大 `--curve-p` |
-| 渐变收尾太陡 | 减小 `--curve-p` |
+| 渐变启动太快 | 增大 `--exp-k` |
+| 渐变收尾太陡 | 减小 `--exp-k` |
 | 渐变区域太短 | 增大 `--modify-zone` |
 | 填充色偏亮 | 增大 `--fill-blur` |
 
