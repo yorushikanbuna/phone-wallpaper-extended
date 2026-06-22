@@ -49,9 +49,9 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const fillBlur   = opts.fillBlur   ?? FILL_BLUR;
   const expK       = opts.expK       ?? EXP_K;
 
-  // ── 1. Sample fill from middle of modify zone (matches boundary depth) ──
-  const fillSampleTop = Math.floor(modifyZone * 0.4);
-  const FILL_SAMPLE_H = Math.min(Math.floor(modifyZone * 0.6), height - fillSampleTop);
+  // ── 1. Sample fill from zone boundary (matches gradient-end colour) ──
+  const fillSampleTop = Math.max(0, modifyZone - 15);
+  const FILL_SAMPLE_H = Math.min(30, height - fillSampleTop);
   const fillRaw = await sharp(inputPath)
     .extract({ left: 0, top: fillSampleTop, width, height: FILL_SAMPLE_H })
     .removeAlpha().raw().toBuffer();
@@ -89,10 +89,7 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   for (let y = 0; y < height; y++) {
     const t = Math.min(y / modifyZone, 1);
     const curve = (Math.exp(-expK * (1 - t)) - Math.exp(-expK)) / denom;
-    // Smooth landing: last 15% blends curve into 1.0 to avoid sharp cutoff
-    const tail = Math.max(0, Math.min(1, (t - 0.85) / 0.15));
-    const tailEased = tail * tail * (3 - 2 * tail); // smoothstep
-    const alpha = Math.round(255 * (curve * (1 - tailEased) + 1 * tailEased));
+    const alpha = Math.round(255 * curve);
 
     for (let x = 0; x < width; x++) {
       const si = (y * width + x) * 3;

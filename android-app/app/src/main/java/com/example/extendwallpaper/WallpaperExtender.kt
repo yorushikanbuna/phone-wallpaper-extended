@@ -19,9 +19,9 @@ object WallpaperExtender {
         val topOffset = when (position) { "bottom" -> 0; "center" -> ext / 2; else -> ext }
         val halfZone = zone / 2
 
-        // 1. Fill colour from middle of modify zone
-        val sampleTop = (zone * 0.4f).roundToInt()
-        val sampleH = min((zone * 0.6f).roundToInt(), h - sampleTop)
+        // 1. Fill colour from zone boundary
+        val sampleTop = maxOf(0, zone - 15)
+        val sampleH = min(30, h - sampleTop)
         val top = Bitmap.createBitmap(source, 0, sampleTop, w, sampleH)
         val blurred = blur(top, 40f)
         val fillColor = medianColor(blurred)
