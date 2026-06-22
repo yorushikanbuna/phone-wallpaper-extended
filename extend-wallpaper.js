@@ -49,10 +49,11 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const fillBlur   = opts.fillBlur   ?? FILL_BLUR;
   const expK       = opts.expK       ?? EXP_K;
 
-  // ── 1. Sample fill colour from full modify zone (matches blend region) ──
-  const FILL_SAMPLE_H = Math.min(modifyZone, height);
+  // ── 1. Sample fill from middle of modify zone (matches boundary depth) ──
+  const fillSampleTop = Math.floor(modifyZone * 0.4);
+  const FILL_SAMPLE_H = Math.min(Math.floor(modifyZone * 0.6), height - fillSampleTop);
   const fillRaw = await sharp(inputPath)
-    .extract({ left: 0, top: 0, width, height: FILL_SAMPLE_H })
+    .extract({ left: 0, top: fillSampleTop, width, height: FILL_SAMPLE_H })
     .removeAlpha().raw().toBuffer();
 
   const fillPNG = await sharp(fillRaw, {
@@ -74,11 +75,24 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const mid = Math.floor(allR.length / 2);
   const fR = allR[mid], fG = allG[mid], fB = allB[mid];
 
-  // ── 2. Full fill-colour background (extension + original area) ──
-  const fillBg = await sharp({
-    create: { width, height: targetH, channels: 4,
-      background: { r: fR, g: fG, b: fB, alpha: 1 } },
-  }).png().toBuffer();
+  // ── 2. Per-column fill background — matches horizontal brightness profile ──
+  const fillBgBuf = Buffer.alloc(targetH * width * 3);
+  const fillColBuf = fillBlurred.slice(
+    (Math.floor(FILL_SAMPLE_H / 2) * width) * 3,
+    (Math.floor(FILL_SAMPLE_H / 2) * width + width) * 3
+  );
+  for (let y = 0; y < targetH; y++) {
+    for (let x = 0; x < width; x++) {
+      const si = x * 3;
+      const di = (y * width + x) * 3;
+      fillBgBuf[di] = fillColBuf[si];
+      fillBgBuf[di + 1] = fillColBuf[si + 1];
+      fillBgBuf[di + 2] = fillColBuf[si + 2];
+    }
+  }
+  const fillBg = await sharp(fillBgBuf, {
+    raw: { width, height: targetH, channels: 3 },
+  }).ensureAlpha().png().toBuffer();
 
   // ── 3. Original with exponential transparency gradient ──
   const origWithAlphaBuf = Buffer.alloc(height * width * 4);

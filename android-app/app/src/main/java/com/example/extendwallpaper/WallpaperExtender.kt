@@ -19,16 +19,23 @@ object WallpaperExtender {
         val topOffset = when (position) { "bottom" -> 0; "center" -> ext / 2; else -> ext }
         val halfZone = zone / 2
 
-        // 1. Fill colour from full modify zone
-        val topH = min(zone, h)
-        val top = Bitmap.createBitmap(source, 0, 0, w, topH)
+        // 1. Fill colour from middle of modify zone
+        val sampleTop = (zone * 0.4f).roundToInt()
+        val sampleH = min((zone * 0.6f).roundToInt(), h - sampleTop)
+        val top = Bitmap.createBitmap(source, 0, sampleTop, w, sampleH)
         val blurred = blur(top, 40f)
-        val fillColor = medianColor(blurred)
+        // Per-column fill from blurred middle row (matches horizontal brightness profile)
+        val midRow = sampleH / 2
+        val fillPixels = IntArray(w); blurred.getPixels(fillPixels, 0, w, 0, midRow, w, 1)
         top.recycle(); blurred.recycle()
 
-        // 2. Fill background
+        // 2. Per-column fill background
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
-        bg.eraseColor(fillColor)
+        val bgPixels = IntArray(w * targetH)
+        for (y in 0 until targetH) {
+            System.arraycopy(fillPixels, 0, bgPixels, y * w, w)
+        }
+        bg.setPixels(bgPixels, 0, w, 0, 0, w, targetH)
 
         // 3. Original with power-curve alpha gradient
         val pixels = IntArray(w * h)
