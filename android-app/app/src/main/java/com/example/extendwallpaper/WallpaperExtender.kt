@@ -45,13 +45,13 @@ object WallpaperExtender {
 
         for (y in 0 until h) {
             val alpha = when (position) {
-                "bottom" -> if (y >= h - zone) alphaFromTop(h - y, zone) else 0
+                "bottom" -> if (y >= h - zone) alphaFromTop(h - y, zone) else 255
                 "center" -> when {
                     y < halfZone -> alphaFromTop(y, halfZone)
                     y >= h - halfZone -> alphaFromTop(h - y, halfZone)
-                    else -> 0
+                    else -> 255
                 }
-                else -> if (y < zone) alphaFromTop(y, zone) else 0  // top
+                else -> if (y < zone) alphaFromTop(y, zone) else 255  // top
             }
             if (alpha <= 0) continue
             if (alpha >= 255) {
