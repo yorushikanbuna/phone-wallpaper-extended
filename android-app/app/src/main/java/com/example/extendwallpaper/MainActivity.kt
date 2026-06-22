@@ -83,8 +83,8 @@ class MainActivity : AppCompatActivity() {
 
         // Compute preview fill colours — blur+median only (HSL matching done at generate)
         CoroutineScope(Dispatchers.Default).launch {
-            val topC = sampleColor(bmp, 0, 30)
-            val botC = sampleColor(bmp, bmp.height - 15, 20)
+            val topC = sampleColor(bmp, 0, 15)
+            val botC = sampleColor(bmp, bmp.height - 8, 15)
             withContext(Dispatchers.Main) {
                 fillColor = topC
                 fillColor2 = botC
@@ -150,10 +150,11 @@ class MainActivity : AppCompatActivity() {
                 // (brightness reference at edge, not gradient endpoint — fillColor is invisible at endpoint)
 
                 // Sample base hue/saturation from image edges (narrow strip for true edge colour)
-                val topSampleY = when (pos) { "bottom" -> bmp.height - 15; else -> 0 }
-                val topSampleH = when (pos) { "bottom" -> 20; else -> 15 }
+                val edgeH = 15
+                val topSampleY = when (pos) { "bottom" -> bmp.height - 8; else -> 0 }
+                val topSampleH = edgeH
                 val topBase = sampleColor(bmp, topSampleY, topSampleH)
-                val botBase = sampleColor(bmp, bmp.height - 15, 20)
+                val botBase = sampleColor(bmp, bmp.height - 8, edgeH)
 
                 // Brightness reference at image edges (where fillColor is most visible)
                 val refTop = when (pos) { "bottom" -> bmp.height - 1; else -> 0 }
