@@ -99,6 +99,7 @@ class MainActivity : AppCompatActivity() {
                 fillColor2 = botC
                 binding.previewView.setFillColor(topC)
                 updatePreviewColors()
+                binding.tvImageInfo.text = "top=#${Integer.toHexString(topC).takeLast(6)} bot=#${Integer.toHexString(botC).takeLast(6)}"
             }
         }
     }
