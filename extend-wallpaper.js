@@ -1,40 +1,45 @@
 #!/usr/bin/env node
 const sharp = require('sharp');
 
-// ── Configuration ──────────────────────────────────────────
-const TARGET_RATIO = 1216 / 2640; // phone aspect ratio
-const ORIG_MODIFY  = 250;         // px into original to modify (50 solid + 200 blend)
-const SOLID_ZONE   = 50;          // px of pure fill at top of original
-const FILL_BLUR    = 80;          // sigma for fill-color blur
-const BLEND_BLUR   = 50;          // sigma for transition-zone blur
-const EXP_K        = 5;           // exponential decay steepness
+// ── Defaults (adaptive — scale with extension amount) ──────
+const FILL_BLUR  = 80;   // sigma for fill-colour blur
+const BLEND_BLUR = 50;   // sigma for transition-zone blur
+const EXP_K      = 5;    // exponential decay steepness
 
 // ── Core ───────────────────────────────────────────────────
 
 /**
- * Extend an image by adding solid-color padding at the top,
+ * Extend an image by adding solid-colour padding at the top,
  * with a seamless exponential-blend transition into the original.
  *
- * @param {string}  inputPath   - path to the source image
- * @param {string}  outputPath  - path for the output image
- * @param {object}  [opts]      - optional overrides
- * @param {number}  [opts.ratio]       - target width/height ratio
- * @param {number}  [opts.solidZone]   - px of pure fill on original top
- * @param {number}  [opts.blendZone]   - px of transition blend
- * @param {number}  [opts.fillBlur]    - blur sigma for fill colour
- * @param {number}  [opts.blendBlur]   - blur sigma for transition
- * @param {number}  [opts.expK]        - exponential decay steepness
+ * @param {string}  inputPath
+ * @param {string}  outputPath
+ * @param {object}  [opts]
+ * @param {number}  [opts.ratio]        target width / height (e.g. 1216/2640)
+ * @param {string}  [opts.target]       target resolution "WxH" (e.g. "1216x2640")
+ * @param {number}  [opts.solidZone]    px of pure fill on original top
+ * @param {number}  [opts.blendZone]    px of exponential-blend transition
+ * @param {number}  [opts.fillBlur]     blur sigma for fill colour
+ * @param {number}  [opts.blendBlur]    blur sigma for transition
+ * @param {number}  [opts.expK]         exponential decay steepness
  */
 async function extendImage(inputPath, outputPath, opts = {}) {
-  const ratio     = opts.ratio      ?? TARGET_RATIO;
-  const solidZone = opts.solidZone  ?? SOLID_ZONE;
-  const blendZone = opts.blendZone  ?? (ORIG_MODIFY - SOLID_ZONE);
-  const fillBlur  = opts.fillBlur   ?? FILL_BLUR;
-  const blendBlur = opts.blendBlur  ?? BLEND_BLUR;
-  const expK      = opts.expK       ?? EXP_K;
-
   const meta = await sharp(inputPath).metadata();
   const { width, height } = meta;
+
+  // Resolve target ratio — prefer explicit ratio, then --target, then ask user
+  let ratio = opts.ratio;
+  if (!ratio && opts.target) {
+    const [tw, th] = opts.target.split('x').map(Number);
+    if (!tw || !th) throw new Error(`Invalid --target "${opts.target}". Use WxH format, e.g. 1216x2640`);
+    ratio = tw / th;
+  }
+  if (!ratio) throw new Error(
+    'Please specify --target WxH or --ratio N.\n' +
+    '  Examples: --target 1216x2640  (phone resolution)\n' +
+    '            --ratio 0.4606      (width ÷ height)'
+  );
+
   const targetH = Math.round(width / ratio);
   const extendPx = targetH - height;
 
@@ -44,17 +49,25 @@ async function extendImage(inputPath, outputPath, opts = {}) {
     return { width, height, targetH, extendPx: 0, fillColor: null };
   }
 
+  // Adaptive zones: scale with extension amount so short/long extensions look natural
+  const solidZone = opts.solidZone ?? Math.max(30, Math.round(extendPx * 0.08));
+  const blendZone = opts.blendZone ?? Math.max(80, Math.round(extendPx * 0.35));
+  const fillBlur  = opts.fillBlur  ?? FILL_BLUR;
+  const blendBlur = opts.blendBlur ?? BLEND_BLUR;
+  const expK      = opts.expK      ?? EXP_K;
+
   const modifyZone = solidZone + blendZone;
+  const sampleH = Math.min(modifyZone, height);
 
   // ── 1. Sample fill colour from heavily-blurred image top ──
   const topRaw = await sharp(inputPath)
-    .extract({ left: 0, top: 0, width, height: Math.min(modifyZone, height) })
+    .extract({ left: 0, top: 0, width, height: sampleH })
     .removeAlpha()
     .raw()
     .toBuffer();
 
   const topPNG = await sharp(topRaw, {
-    raw: { width, height: Math.min(modifyZone, height), channels: 3 },
+    raw: { width, height: sampleH, channels: 3 },
   }).png().toBuffer();
 
   const topBlurred = await sharp(topPNG)
@@ -95,9 +108,9 @@ async function extendImage(inputPath, outputPath, opts = {}) {
 
       // Exponential-decay blend: solid → blurred → original
       const t = (y - solidZone) / blendZone;
-      const sW = Math.exp(-expK * t);         // solid: steep drop
-      const oW = t * t;                        // original: quadratic rise
-      const bW = Math.max(0, 1 - sW - oW);     // blur: fills the gap
+      const sW = Math.exp(-expK * t);         // solid: steep exponential drop
+      const oW = t * t;                        // original: quadratic rise at tail
+      const bW = Math.max(0, 1 - sW - oW);     // blur: fills the mid-range
       const total = sW + bW + oW;
 
       const bR = topHeavyBlur[si], bG = topHeavyBlur[si + 1], bB = topHeavyBlur[si + 2];
@@ -125,8 +138,8 @@ async function extendImage(inputPath, outputPath, opts = {}) {
     create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
   })
     .composite([
-      { input: overlay,  top: 0,           left: 0 },
-      { input: origRest, top: modifyZone,   left: 0 },
+      { input: overlay,  top: 0,          left: 0 },
+      { input: origRest, top: modifyZone,  left: 0 },
     ])
     .png()
     .toBuffer();
@@ -151,25 +164,34 @@ function clamp(v) {
   return v < 0 ? 0 : v > 255 ? 255 : v;
 }
 
-function printUsage() {
+function printHelp() {
   console.log([
     '',
-    'Usage: node extend-wallpaper.js <input> [output] [options]',
+    '  extend-wallpaper — seamless phone wallpaper extension',
     '',
-    '  <input>        path to source image (1440×2520 PNG recommended)',
-    '  [output]       path for output image (default: <input>_extended.png)',
+    '  Usage:',
+    '    node extend-wallpaper.js <input> [output] [options]',
     '',
-    'Options:',
-    '  --ratio N      target aspect ratio (default: 1216/2640 ≈ 0.4606)',
-    '  --solid N      px of solid-colour zone on original top (default: 50)',
-    '  --blend N      px of exponential-blend transition (default: 200)',
-    '  --fill-blur N  blur sigma for fill colour (default: 80)',
-    '  --blend-blur N blur sigma for transition (default: 50)',
-    '  --exp-k N      exponential decay steepness (default: 5)',
+    '  Required (pick one):',
+    '    --target WxH      e.g. --target 1216x2640   (your phone resolution)',
+    '    --ratio N         e.g. --ratio 0.4606       (width ÷ height)',
     '',
-    'Example:',
-    '  node extend-wallpaper.js photo.png',
-    '  node extend-wallpaper.js photo.png out.png --ratio 9/19.5',
+    '  Optional:',
+    '    --solid N         solid-zone px   (default: adaptive, ~8% of extension)',
+    '    --blend N         blend-zone px   (default: adaptive, ~35% of extension)',
+    '    --fill-blur N     fill-blur sigma (default: 80)',
+    '    --blend-blur N    blend-blur sigma (default: 50)',
+    '    --exp-k N         exp decay steepness (default: 5)',
+    '',
+    '  Examples:',
+    '    # iPhone-style display (1216×2640)',
+    '    node extend-wallpaper.js art.png --target 1216x2640',
+    '',
+    '    # Custom aspect ratio',
+    '    node extend-wallpaper.js art.png out.png --target 1080x2400',
+    '',
+    '    # Batch process all PNGs in a folder',
+    '    for f in *.png; do node extend-wallpaper.js "$f" --target 1080x2400; done',
     '',
   ].join('\n'));
 }
@@ -180,33 +202,32 @@ function parseArgv(argv) {
   const args = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--help' || a === '-h') { args.help = true; }
-    else if (a === '--ratio')      { args.ratio      = parseFloat(argv[++i]); }
-    else if (a === '--solid')      { args.solidZone  = parseInt(argv[++i], 10); }
-    else if (a === '--blend')      { args.blendZone  = parseInt(argv[++i], 10); }
-    else if (a === '--fill-blur')  { args.fillBlur   = parseFloat(argv[++i]); }
-    else if (a === '--blend-blur') { args.blendBlur  = parseFloat(argv[++i]); }
-    else if (a === '--exp-k')      { args.expK       = parseFloat(argv[++i]); }
+    if (a === '--help' || a === '-h')   { args.help = true; }
+    else if (a === '--target')          { args.target     = argv[++i]; }
+    else if (a === '--ratio')           { args.ratio      = parseFloat(argv[++i]); }
+    else if (a === '--solid')           { args.solidZone  = parseInt(argv[++i], 10); }
+    else if (a === '--blend')           { args.blendZone  = parseInt(argv[++i], 10); }
+    else if (a === '--fill-blur')       { args.fillBlur   = parseFloat(argv[++i]); }
+    else if (a === '--blend-blur')      { args.blendBlur  = parseFloat(argv[++i]); }
+    else if (a === '--exp-k')           { args.expK       = parseFloat(argv[++i]); }
     else { args._.push(a); }
   }
   return args;
 }
 
 async function main() {
-  // ── exported function, no CLI behaviour ──
   if (require.main !== module) return;
 
   const args = parseArgv(process.argv.slice(2));
 
-  if (args.help || args._.length === 0) {
-    printUsage();
-    process.exit(args.help ? 0 : 1);
-  }
+  if (args.help) { printHelp(); process.exit(0); }
+  if (args._.length === 0) { printHelp(); process.exit(1); }
 
   const inputPath  = args._[0];
   const outputPath = args._[1] || inputPath.replace(/\.(png|jpe?g|webp|tiff?)$/i, '_extended.png');
 
   const opts = {};
+  if (args.target)     opts.target     = args.target;
   if (args.ratio)      opts.ratio      = args.ratio;
   if (args.solidZone)  opts.solidZone  = args.solidZone;
   if (args.blendZone)  opts.blendZone  = args.blendZone;
@@ -214,8 +235,18 @@ async function main() {
   if (args.blendBlur)  opts.blendBlur  = args.blendBlur;
   if (args.expK)       opts.expK       = args.expK;
 
-  const result = await extendImage(inputPath, outputPath, opts);
-  console.log(`  → ${outputPath}  (extended ${result.extendPx}px, fill #${hex(result.fillColor)})`);
+  try {
+    const { extendPx, fillColor, width, height, targetH } =
+      await extendImage(inputPath, outputPath, opts);
+    if (extendPx === 0) {
+      console.log(`${inputPath}: already tall enough (${width}x${height}), copied unchanged`);
+    } else {
+      console.log(`${inputPath}: ${width}x${height} → ${width}x${targetH}  (+${extendPx}px, #${hex(fillColor)})`);
+    }
+  } catch (e) {
+    console.error('Error:', e.message);
+    process.exit(1);
+  }
 }
 
 function hex(c) {
@@ -223,7 +254,7 @@ function hex(c) {
   return [c.r, c.g, c.b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-main().catch(e => { console.error(e.message); process.exit(1); });
+main();
 
 // ── Exports ────────────────────────────────────────────────
 module.exports = { extendImage };

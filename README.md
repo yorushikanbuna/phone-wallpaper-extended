@@ -1,30 +1,22 @@
 # phone-wallpaper-extended
 
-Extend image height with a seamless exponential-blend transition — designed for adapting wallpapers to taller phone screens **without cropping**.
+Extend image height with a seamless exponential-blend transition — adapt wallpapers to taller phone screens **without cropping**. Works with any image resolution and any phone aspect ratio.
 
 ## How it works
 
-<div align="center">
-  <pre>
-┌──────────────────────┐
-│   solid fill (606px) │  ← pure colour, sampled from blurred image top
-├──────────────────────┤
-│   solid zone (50px)  │  ← original image, overlaid with same pure colour
-│  ── invisible seam ──│
-│  exp-blend (200px)   │  ← e^(-5x) decay: blur-heavy at top, sharp at bottom
-├──────────────────────┤
-│   untouched original │  ← full quality preserved
-└──────────────────────┘
-  </pre>
-</div>
+```
+┌──────────────────────────┐
+│   solid fill (adaptive)  │  ← pure colour from blurred image top
+├──────────────────────────┤
+│   solid zone (8% of ext) │  ← overlay same colour → invisible seam
+│  ──── seam invisible ────│
+│   exp-blend (35% of ext) │  ← e⁻⁵ˣ decay: texture releases slowly
+├──────────────────────────┤
+│   untouched original     │  ← full quality preserved
+└──────────────────────────┘
+```
 
-### The algorithm
-
-1. **Sample fill colour** — heavily blur the image's top region and extract the dominant colour
-2. **Solid extension** — fill the required extra height with that pure colour
-3. **Solid zone** — overlay the same pure colour on the original's first 50 px to make the seam invisible
-4. **Exponential blend** — over the next 200 px, blend from pure colour → heavily blurred original → sharp original, following an e⁻⁵ˣ decay curve so texture releases extremely slowly at first
-5. **Original untouched** — everything beyond 250 px is unmodified
+Zones scale automatically with the extension amount. A 600 px extension gets ~50 px solid / ~200 px blend. A 200 px extension gets ~30 px solid / ~80 px blend.
 
 ## Install
 
@@ -41,30 +33,33 @@ Requires **Node.js ≥ 18**.
 ### CLI
 
 ```bash
-node extend-wallpaper.js <input> [output] [options]
+node extend-wallpaper.js <input> [output] --target <WxH>
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--ratio N` | `0.4606` (1216/2640) | Target width/height ratio |
-| `--solid N` | `50` | Pixels of solid-colour zone on original top |
-| `--blend N` | `200` | Pixels of exponential-blend transition |
-| `--fill-blur N` | `80` | Blur sigma for fill colour sampling |
-| `--blend-blur N` | `50` | Blur sigma for transition zone |
+| `--target WxH` | *(required)* | Phone resolution, e.g. `1216x2640` |
+| `--ratio N` | — | Alt: aspect ratio, e.g. `0.4606` |
+| `--solid N` | adaptive | Solid-zone px on original top |
+| `--blend N` | adaptive | Blend transition px |
+| `--fill-blur N` | `80` | Blur sigma for fill colour |
+| `--blend-blur N` | `50` | Blur sigma for transition |
 | `--exp-k N` | `5` | Exponential decay steepness |
 
+### Examples
+
 ```bash
-# Basic usage — auto-detects extension amount from image dimensions
-node extend-wallpaper.js photo.png
+# Your phone is 1216×2640, image is 1440×2520
+node extend-wallpaper.js photo.png --target 1216x2640
 
 # Custom output path
-node extend-wallpaper.js photo.png wallpaper.png
+node extend-wallpaper.js photo.png out.png --target 1080x2400
 
-# Custom aspect ratio (e.g. 9:19.5)
-node extend-wallpaper.js photo.png --ratio 0.4615
+# Fine-tune the blend
+node extend-wallpaper.js photo.png --target 1216x2640 --solid 40 --blend 300
 
-# Batch processing (bash)
-for f in *.png; do node extend-wallpaper.js "$f"; done
+# Batch process a folder
+for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
 ```
 
 ### API
@@ -72,21 +67,32 @@ for f in *.png; do node extend-wallpaper.js "$f"; done
 ```js
 const { extendImage } = require('./extend-wallpaper.js');
 
-await extendImage('photo.png', 'output.png', {
-  ratio: 1216 / 2640,   // target aspect ratio
-  solidZone: 50,        // px of pure fill on original top
-  blendZone: 200,       // px of exponential transition
-  fillBlur: 80,         // blur sigma for fill colour
-  blendBlur: 50,        // blur sigma for transition
-  expK: 5,              // exponential steepness
+// Specify phone resolution
+await extendImage('in.png', 'out.png', { target: '1216x2640' });
+
+// Or aspect ratio
+await extendImage('in.png', 'out.png', { ratio: 1216 / 2640 });
+
+// With custom zones
+await extendImage('in.png', 'out.png', {
+  target:    '1216x2640',
+  solidZone: 60,     // px of pure fill on original top
+  blendZone: 250,    // px of transition
+  fillBlur:  100,    // sigma for fill colour
+  blendBlur: 60,     // sigma for transition blur
+  expK:      6,      // steeper decay
 });
 ```
 
-## Example
+## Tuning guide
 
-| Before (1440×2520) | After (1440×3126) |
-|---------------------|--------------------|
-| Original wallpaper, too short for phone screen | Extended 606px at top, zero visible seam, original content fully preserved |
+| Symptom | Fix |
+|---------|-----|
+| Seam is visible | Increase `--solid` (e.g. 60) |
+| Transition too abrupt | Increase `--blend` (e.g. 300) |
+| Fill colour looks wrong | Increase `--fill-blur` (e.g. 120) |
+| Extension too blurry | Decrease `--blend-blur` (e.g. 30) |
+| Texture releases too fast | Increase `--exp-k` (e.g. 6–7) |
 
 ## License
 
