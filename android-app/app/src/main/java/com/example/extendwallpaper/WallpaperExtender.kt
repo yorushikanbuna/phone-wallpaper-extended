@@ -44,7 +44,7 @@ object WallpaperExtender {
                 else if(mx==fGf)((fBf-fRf)/d+2f)/6f else((fRf-fGf)/d+4f)/6f}
             val q=if(bLum<.5f)bLum*(1f+fS)else bLum+fS-bLum*fS;val p=2f*bLum-q
             fun hue(h:Float):Int{var t=h;if(t<0f)t+=1f;if(t>1f)t-=1f
-                return (if(t<1f/6f)p+(q-p)*6f*t else if(t<.5f)q else if(t<2f/3f)p+(q-p)*(2f/3f-t)*6f else p)*255f roundToInt 0xFF}
+                return (if(t<1f/6f)p+(q-p)*6f*t else if(t<.5f)q else if(t<2f/3f)p+(q-p)*(2f/3f-t)*6f else p).times(255f).roundToInt().coerceIn(0,255)}
             return 0xFF shl 24 or (hue(fH+1f/3f) shl 16) or (hue(fH) shl 8) or hue(fH-1f/3f)
         }
         val fillColor = when(position){"center"->matchLum(halfZone);"bottom"->matchLum(h-zone);else->matchLum(zone)}
