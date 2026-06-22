@@ -149,9 +149,9 @@ class MainActivity : AppCompatActivity() {
                 // Compute fill colours from FULL-RES bitmap with HSL matching at image edges
                 // (brightness reference at edge, not gradient endpoint — fillColor is invisible at endpoint)
 
-                // Sample base hue/saturation from image edges
+                // Sample base hue/saturation from image edges (narrow strip for true edge colour)
                 val topSampleY = when (pos) { "bottom" -> bmp.height - 15; else -> 0 }
-                val topSampleH = when (pos) { "bottom" -> 20; else -> 30 }
+                val topSampleH = when (pos) { "bottom" -> 20; else -> 15 }
                 val topBase = sampleColor(bmp, topSampleY, topSampleH)
                 val botBase = sampleColor(bmp, bmp.height - 15, 20)
 
