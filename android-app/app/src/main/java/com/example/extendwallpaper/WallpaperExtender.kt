@@ -19,43 +19,55 @@ object WallpaperExtender {
         val topOffset = when (position) { "bottom" -> 0; "center" -> ext / 2; else -> ext }
         val halfZone = zone / 2
 
-        // 1. Fill colour from zone boundary
-        val sampleTop = maxOf(0, zone - 15)
-        val sampleH = min(30, h - sampleTop)
-        val top = Bitmap.createBitmap(source, 0, sampleTop, w, sampleH)
+        // 1. Fill colour from top 30px, then brightness-match to gradient boundary
+        val sampleH = min(30, h)
+        val top = Bitmap.createBitmap(source, 0, 0, w, sampleH)
         val blurred = blur(top, 40f)
-        val fillColor = medianColor(blurred)
+        var fillColor = medianColor(blurred)
         top.recycle(); blurred.recycle()
+
+        // Brightness match: adjust fill L to match gradient boundary
+        val boundaryY = min(zone, h - 1)
+        val bH = min(20, h - maxOf(0, boundaryY - 10))
+        val bTop = maxOf(0, boundaryY - 10)
+        val boundary = Bitmap.createBitmap(source, 0, bTop, w, bH)
+        val bPixels = IntArray(w * bH)
+        boundary.getPixels(bPixels, 0, w, 0, 0, w, bH)
+        var bSum = 0f; var bCount = 0
+        for (c in bPixels) { bSum += 0.299f*(c shr 16 and 0xFF) + 0.587f*(c shr 8 and 0xFF) + 0.114f*(c and 0xFF); bCount++ }
+        val bLum = bSum / bCount / 255f
+        boundary.recycle()
+
+        val fR = fillColor shr 16 and 0xFF
+        val fG = fillColor shr 8 and 0xFF
+        val fB = fillColor and 0xFF
+        val fLum = (0.299f*fR + 0.587f*fG + 0.114f*fB) / 255f
+        val factor = if (fLum > 0.01f) bLum / fLum else 1f
+        fillColor = 0xFF shl 24 or
+            (min(255, (fR * factor).roundToInt()) shl 16) or
+            (min(255, (fG * factor).roundToInt()) shl 8) or
+            min(255, (fB * factor).roundToInt())
 
         // 2. Pure solid fill background
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
         bg.eraseColor(fillColor)
 
-        // 3. Original with power-curve alpha gradient
+        // 3. Exponential alpha gradient
+        val denom = 1.0 - exp(-EXP_K)
         val pixels = IntArray(w * h)
         source.getPixels(pixels, 0, w, 0, 0, w, h)
         val canvas = Canvas(bg)
         val paint = Paint()
 
-        val alphaDenom = 1.0 - exp(-EXP_K)
-        fun alphaFromTop(dist: Int, range: Int): Int {
-            val t = (dist.toFloat() / range).coerceAtMost(1f)
-            val curve = (exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / alphaDenom
-            // Smooth landing: last 15% blends into 1.0
-            val tail = maxOf(0f, minOf(1f, (t - 0.85f) / 0.15f))
-            val tailEased = tail * tail * (3 - 2 * tail)
-            return (255 * (curve * (1 - tailEased) + tailEased)).roundToInt().coerceIn(0, 255)
-        }
-
         for (y in 0 until h) {
             val alpha = when (position) {
-                "bottom" -> if (y >= h - zone) alphaFromTop(h - y, zone) else 255
+                "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
                 "center" -> when {
-                    y < halfZone -> alphaFromTop(y, halfZone)
-                    y >= h - halfZone -> alphaFromTop(h - y, halfZone)
+                    y < halfZone -> alphaAt(y, halfZone, denom)
+                    y >= h - halfZone -> alphaAt(h - y, halfZone, denom)
                     else -> 255
                 }
-                else -> if (y < zone) alphaFromTop(y, zone) else 255  // top
+                else -> if (y < zone) alphaAt(y, zone, denom) else 255
             }
             if (alpha <= 0) continue
             if (alpha >= 255) {
@@ -72,64 +84,44 @@ object WallpaperExtender {
         return Result(bg, fillColor, ext)
     }
 
+    private fun alphaAt(dist: Int, range: Int, denom: Double): Int {
+        val t = (dist.toFloat() / range).coerceAtMost(1f)
+        val curve = (exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / denom
+        return (255 * curve).roundToInt().coerceIn(0, 255)
+    }
+
     // ── Stacked box blur (approximates Gaussian, 3 passes) ──
     private fun blur(src: Bitmap, radius: Float): Bitmap {
         val r = radius.roundToInt().coerceAtLeast(2)
         val w = src.width; val h = src.height
         val pixels = IntArray(w * h)
         src.getPixels(pixels, 0, w, 0, 0, w, h)
-
-        // 3 passes approximates true Gaussian
         boxBlur(pixels, w, h, r)
         boxBlur(pixels, w, h, r)
         boxBlur(pixels, w, h, r)
-
         return Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
     }
 
     private fun boxBlur(pixels: IntArray, w: Int, h: Int, radius: Int) {
         val tmp = pixels.copyOf()
         val kernel = radius * 2 + 1
-
-        // Horizontal pass
+        // Horizontal
         for (y in 0 until h) {
-            var sumR = 0; var sumG = 0; var sumB = 0; var count = 0
+            var sR=0; var sG=0; var sB=0; var c=0
             for (x in 0 until w + radius) {
-                // Add right edge
-                if (x < w) {
-                    val c = tmp[y * w + x]
-                    sumR += c shr 16 and 0xFF; sumG += c shr 8 and 0xFF; sumB += c and 0xFF; count++
-                }
-                // Remove left edge
-                if (x >= kernel) {
-                    val c = tmp[y * w + (x - kernel)]
-                    sumR -= c shr 16 and 0xFF; sumG -= c shr 8 and 0xFF; sumB -= c and 0xFF; count--
-                }
-                // Write center
-                if (x >= radius) {
-                    val cx = x - radius; val avgR = sumR / count; val avgG = sumG / count; val avgB = sumB / count
-                    pixels[y * w + cx] = 0xFF shl 24 or (avgR shl 16) or (avgG shl 8) or avgB
-                }
+                if (x < w) { val v=tmp[y*w+x]; sR+=v shr 16 and 0xFF; sG+=v shr 8 and 0xFF; sB+=v and 0xFF; c++ }
+                if (x >= kernel) { val v=tmp[y*w+(x-kernel)]; sR-=v shr 16 and 0xFF; sG-=v shr 8 and 0xFF; sB-=v and 0xFF; c-- }
+                if (x >= radius) { val cx=x-radius; pixels[y*w+cx]=0xFF shl 24 or ((sR/c) shl 16) or ((sG/c) shl 8) or (sB/c) }
             }
         }
-
-        // Vertical pass — use horizontally-blurred result as source
         pixels.copyInto(tmp)
+        // Vertical
         for (x in 0 until w) {
-            var sumR = 0; var sumG = 0; var sumB = 0; var count = 0
+            var sR=0; var sG=0; var sB=0; var c=0
             for (y in 0 until h + radius) {
-                if (y < h) {
-                    val c = tmp[y * w + x]
-                    sumR += c shr 16 and 0xFF; sumG += c shr 8 and 0xFF; sumB += c and 0xFF; count++
-                }
-                if (y >= kernel) {
-                    val c = tmp[(y - kernel) * w + x]
-                    sumR -= c shr 16 and 0xFF; sumG -= c shr 8 and 0xFF; sumB -= c and 0xFF; count--
-                }
-                if (y >= radius) {
-                    val cy = y - radius; val avgR = sumR / count; val avgG = sumG / count; val avgB = sumB / count
-                    pixels[cy * w + x] = 0xFF shl 24 or (avgR shl 16) or (avgG shl 8) or avgB
-                }
+                if (y < h) { val v=tmp[y*w+x]; sR+=v shr 16 and 0xFF; sG+=v shr 8 and 0xFF; sB+=v and 0xFF; c++ }
+                if (y >= kernel) { val v=tmp[(y-kernel)*w+x]; sR-=v shr 16 and 0xFF; sG-=v shr 8 and 0xFF; sB-=v and 0xFF; c-- }
+                if (y >= radius) { val cy=y-radius; pixels[cy*w+x]=0xFF shl 24 or ((sR/c) shl 16) or ((sG/c) shl 8) or (sB/c) }
             }
         }
     }
@@ -138,11 +130,8 @@ object WallpaperExtender {
         val n = bmp.width * bmp.height
         val p = IntArray(n); bmp.getPixels(p, 0, bmp.width, 0, 0, bmp.width, bmp.height)
         val r = IntArray(n); val g = IntArray(n); val b = IntArray(n)
-        for (i in 0 until n) {
-            val c = p[i]; r[i] = c shr 16 and 0xFF; g[i] = c shr 8 and 0xFF; b[i] = c and 0xFF
-        }
-        r.sort(); g.sort(); b.sort()
-        val m = n / 2
+        for (i in 0 until n) { val c=p[i]; r[i]=c shr 16 and 0xFF; g[i]=c shr 8 and 0xFF; b[i]=c and 0xFF }
+        r.sort(); g.sort(); b.sort(); val m=n/2
         return 0xFF shl 24 or (r[m] shl 16) or (g[m] shl 8) or b[m]
     }
 }
