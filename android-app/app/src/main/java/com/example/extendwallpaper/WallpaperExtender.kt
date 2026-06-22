@@ -18,6 +18,7 @@ object WallpaperExtender {
 
         val zone = if (modifyZone > 0) modifyZone else (h * 0.1f).roundToInt()
         val topOffset = when (position) { "bottom" -> ext; "center" -> ext / 2; else -> ext }
+        val halfZone = zone / 2
 
         // 1. Fill colour from blurred top 30px
         val topH = min(FILL_SAMPLE_H, h)
@@ -30,17 +31,28 @@ object WallpaperExtender {
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
         bg.eraseColor(fillColor)
 
-        // 3. Original with S-curve alpha
+        // 3. Original with S-curve alpha gradient
         val denom = 1.0 - exp(-EXP_K)
         val pixels = IntArray(w * h)
         source.getPixels(pixels, 0, w, 0, 0, w, h)
         val canvas = Canvas(bg)
         val paint = Paint()
 
+        fun alphaFromTop(dist: Int, range: Int): Int {
+            val t = (dist.toFloat() / range).coerceAtMost(1f)
+            return (255 * ((exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / denom)).roundToInt().coerceIn(0, 255)
+        }
+
         for (y in 0 until h) {
-            val t = (y.toFloat() / zone).coerceAtMost(1f)
-            val alpha = (255 * ((exp(-EXP_K * (1 - t)) - exp(-EXP_K)) / denom))
-                .roundToInt().coerceIn(0, 255)
+            val alpha = when (position) {
+                "bottom" -> if (y >= h - zone) alphaFromTop(h - y, zone) else 0
+                "center" -> when {
+                    y < halfZone -> alphaFromTop(y, halfZone)
+                    y >= h - halfZone -> alphaFromTop(h - y, halfZone)
+                    else -> 0
+                }
+                else -> if (y < zone) alphaFromTop(y, zone) else 0  // top
+            }
             if (alpha <= 0) continue
             if (alpha >= 255) {
                 val row = Bitmap.createBitmap(pixels, y * w, w, w, 1, Bitmap.Config.ARGB_8888)
