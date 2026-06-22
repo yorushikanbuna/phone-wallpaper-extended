@@ -12,79 +12,68 @@ class PreviewView @JvmOverloads constructor(
 
     private var source: Bitmap? = null
     private var fillColor = Color.BLACK
-    private var fraction = 0.1f        // gradient zone fraction of image height
+    private var fraction = 0.1f
     private var phoneRatio = 1216f / 2640f
     private val paint = Paint()
 
     fun setBitmap(bmp: Bitmap) {
         source = bmp
-        invalidate()
+        requestLayout()
     }
+    fun setFillColor(color: Int) { fillColor = color; invalidate() }
+    fun setFraction(f: Float) { fraction = f.coerceIn(0f, 1f); invalidate() }
+    fun setPhoneRatio(ratio: Float) { phoneRatio = ratio; requestLayout() }
 
-    fun setFillColor(color: Int) {
-        fillColor = color
-        invalidate()
-    }
-
-    fun setFraction(f: Float) {
-        fraction = f.coerceIn(0f, 1f)
-        invalidate()
-    }
-
-    fun setPhoneRatio(ratio: Float) {
-        phoneRatio = ratio
-        invalidate()
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val src = source
+        if (src == null) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            return
+        }
+        val vw = MeasureSpec.getSize(widthMeasureSpec)
+        // Image fills width, at correct aspect ratio
+        val imgH = (src.height * vw.toFloat() / src.width).roundToInt()
+        val targetH = (src.width / phoneRatio).roundToInt()
+        val extPx = targetH - src.height
+        val extH = if (extPx > 0) (extPx * vw.toFloat() / src.width).roundToInt() else 0
+        val gap = 2
+        setMeasuredDimension(vw, extH + gap + imgH)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val src = source ?: return
         val vw = width.toFloat()
-        val vh = height.toFloat()
 
-        // Calculate layout: image scales to fit width, extension bar on top
-        val imgDrawW = vw
-        val imgDrawH = src.height * (imgDrawW / src.width)
+        val imgH = src.height * (vw / src.width)
         val targetH = src.width / phoneRatio
         val extPx = targetH - src.height
-        val extDrawH = if (extPx > 0) extPx * (imgDrawW / src.width) else 0f
-
-        val totalDrawH = extDrawH + imgDrawH
-        val scale = if (totalDrawH > vh) vh / totalDrawH else 1f
-        val extH = extDrawH * scale
-        val imgH = imgDrawH * scale
-        val gap = 2f * scale
-        val top = (vh - extH - gap - imgH) / 2f
+        val extH = if (extPx > 0) extPx * (vw / src.width) else 0f
+        val gap = 2f
 
         val r = Color.red(fillColor)
         val g = Color.green(fillColor)
         val bCol = Color.blue(fillColor)
 
-        // 1. Fill-colour extension bar
+        // 1. Extension bar
         paint.shader = null
         paint.color = fillColor
-        canvas.drawRect(0f, top, vw, top + extH, paint)
+        canvas.drawRect(0f, 0f, vw, extH, paint)
 
         // 2. Original image
-        val srcRect = Rect(0, 0, src.width, src.height)
-        val dstRect = Rect(0, (top + extH + gap).roundToInt(), vw.roundToInt(),
-            (top + extH + gap + imgH).roundToInt())
-        canvas.drawBitmap(src, srcRect, dstRect, paint)
+        val dstRect = Rect(0f, extH + gap, vw, extH + gap + imgH)
+        canvas.drawBitmap(src, null, dstRect, paint)
 
-        // 3. Gradient overlay on the image portion
+        // 3. Gradient overlay
         val fadeH = imgH * fraction
         if (fadeH > 0) {
-            val shader = LinearGradient(
-                0f, top + extH + gap, 0f, top + extH + gap + fadeH,
-                intArrayOf(
-                    Color.argb(255, r, g, bCol),  // top: fully opaque fill
-                    Color.argb(0, r, g, bCol)       // fadeEnd: transparent
-                ),
-                floatArrayOf(0f, 1f),
-                Shader.TileMode.CLAMP
+            val y0 = extH + gap
+            paint.shader = LinearGradient(
+                0f, y0, 0f, y0 + fadeH,
+                intArrayOf(Color.argb(255, r, g, bCol), Color.argb(0, r, g, bCol)),
+                floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
             )
-            paint.shader = shader
-            canvas.drawRect(0f, top + extH + gap, vw, top + extH + gap + fadeH, paint)
+            canvas.drawRect(0f, y0, vw, y0 + fadeH, paint)
             paint.shader = null
         }
     }
