@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
             }
             binding.cbSameColor.visibility = if (pos == "center") android.view.View.VISIBLE else android.view.View.GONE
             binding.previewView.setPosition(pos)
+            updatePreviewColors()
         }
 
         binding.sbModifyZone.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -115,13 +116,14 @@ class MainActivity : AppCompatActivity() {
                     return ((if(th<1.0/6.0)p+(q-p)*6.0*th else if(th<.5)q else if(th<2.0/3.0)p+(q-p)*(2.0/3.0-th)*6.0 else p)*255.0).roundToInt().coerceIn(0,255)}
                 return 0xFF shl 24 or (hue(fH+1.0/3.0) shl 16) or (hue(fH) shl 8) or hue(fH-1.0/3.0)
             }
-            val topC = matchLum(zone)
-            val botC = matchLum(h - zone/2)
+            val halfZone = zone / 2
+            val topC = matchLum(halfZone)  // top gradient end
+            val botC = matchLum(h - halfZone) // bottom gradient end (center mode)
             withContext(Dispatchers.Main) {
                 fillColor = topC
                 fillColor2 = botC
                 binding.previewView.setFillColor(topC)
-                binding.previewView.setFillColor2(botC, false)
+                updatePreviewColors()
             }
         }
     }
