@@ -96,7 +96,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadBitmap(uri: Uri): Bitmap? = try {
-        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        contentResolver.openInputStream(uri)?.use { stream ->
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeStream(stream, null, opts)
+            stream.close()
+
+            // Downsample large images to ~2048px max dimension
+            val maxDim = maxOf(opts.outWidth, opts.outHeight)
+            val sampleSize = if (maxDim > 2048) (maxDim / 2048).coerceAtMost(8) else 1
+
+            contentResolver.openInputStream(uri)?.use { s ->
+                BitmapFactory.decodeStream(s, null,
+                    BitmapFactory.Options().apply { inSampleSize = sampleSize })
+            }
+        }
     } catch (e: Exception) {
         Toast.makeText(this, "无法加载图片", Toast.LENGTH_SHORT).show(); null
     }
