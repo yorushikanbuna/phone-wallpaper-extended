@@ -176,7 +176,8 @@ class MainActivity : AppCompatActivity() {
                     R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
                 }
                 val sameColor = binding.cbSameColor.isChecked
-                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fillColor2)
+                val fc2 = if (sameColor) fillColor else fillColor2
+                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, fillColor, fc2)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()
