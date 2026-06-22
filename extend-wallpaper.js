@@ -49,9 +49,9 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const fillBlur   = opts.fillBlur   ?? FILL_BLUR;
   const expK       = opts.expK       ?? EXP_K;
 
-  // ── 1. Sample fill from zone boundary (matches gradient-end colour) ──
-  const fillSampleTop = Math.max(0, modifyZone - 15);
-  const FILL_SAMPLE_H = Math.min(30, height - fillSampleTop);
+  // ── 1. Sample fill from image top (matches seam colour for feathering) ──
+  const fillSampleTop = 0;
+  const FILL_SAMPLE_H = Math.min(30, height);
   const fillRaw = await sharp(inputPath)
     .extract({ left: 0, top: fillSampleTop, width, height: FILL_SAMPLE_H })
     .removeAlpha().raw().toBuffer();
@@ -81,7 +81,7 @@ async function extendImage(inputPath, outputPath, opts = {}) {
       background: { r: fR, g: fG, b: fB, alpha: 1 } },
   }).png().toBuffer();
 
-  // ── 3. Original with exponential transparency gradient ──
+  // ── 3. Alpha gradient (pure exponential) ──
   const origWithAlphaBuf = Buffer.alloc(height * width * 4);
   const origRaw = await sharp(inputPath).removeAlpha().raw().toBuffer();
   const denom = 1 - Math.exp(-expK);
@@ -105,11 +105,8 @@ async function extendImage(inputPath, outputPath, opts = {}) {
     raw: { width, height, channels: 4 },
   }).png().toBuffer();
 
-  // ── 4. Composite: transparent original over fill background ──
   await sharp(fillBg)
-    .composite([
-      { input: origWithAlpha, top: extendPx, left: 0, blend: 'over' },
-    ])
+    .composite([{ input: origWithAlpha, top: extendPx, left: 0, blend: 'over' }])
     .png()
     .toFile(outputPath);
 
