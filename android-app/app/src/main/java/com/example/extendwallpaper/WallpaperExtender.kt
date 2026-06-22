@@ -5,7 +5,6 @@ import kotlin.math.*
 
 object WallpaperExtender {
     private const val EXP_K = 3.0
-    private const val FILL_SAMPLE_H: Int = 30
 
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
@@ -20,8 +19,8 @@ object WallpaperExtender {
         val topOffset = when (position) { "bottom" -> 0; "center" -> ext / 2; else -> ext }
         val halfZone = zone / 2
 
-        // 1. Fill colour from blurred top 30px
-        val topH = min(FILL_SAMPLE_H, h)
+        // 1. Fill colour from full modify zone
+        val topH = min(zone, h)
         val top = Bitmap.createBitmap(source, 0, 0, w, topH)
         val blurred = blur(top, 40f)
         val fillColor = medianColor(blurred)

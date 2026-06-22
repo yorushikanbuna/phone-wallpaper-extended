@@ -49,8 +49,8 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const fillBlur   = opts.fillBlur   ?? FILL_BLUR;
   const expK       = opts.expK       ?? EXP_K;
 
-  // ── 1. Sample fill colour from heavily-blurred narrow top strip ──
-  const FILL_SAMPLE_H = Math.min(30, height);
+  // ── 1. Sample fill colour from full modify zone (matches blend region) ──
+  const FILL_SAMPLE_H = Math.min(modifyZone, height);
   const fillRaw = await sharp(inputPath)
     .extract({ left: 0, top: 0, width, height: FILL_SAMPLE_H })
     .removeAlpha().raw().toBuffer();
