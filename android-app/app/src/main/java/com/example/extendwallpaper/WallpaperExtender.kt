@@ -5,7 +5,7 @@ import kotlin.math.*
 
 object WallpaperExtender {
     private const val EXP_K = 3.0
-    private const val FILL_SAMPLE_H = 30
+    private const val FILL_SAMPLE_H: Int = 30
 
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
@@ -20,7 +20,7 @@ object WallpaperExtender {
         // 1. Fill colour from blurred top 30px
         val topH = min(FILL_SAMPLE_H, h)
         val top = Bitmap.createBitmap(source, 0, 0, w, topH)
-        val blurred = blur(top, 40)
+        val blurred = blur(top, 40f)
         val fillColor = medianColor(blurred)
         top.recycle(); blurred.recycle()
 
@@ -41,12 +41,12 @@ object WallpaperExtender {
                 .roundToInt().coerceIn(0, 255)
             if (alpha <= 0) continue
             if (alpha >= 255) {
-                val row = Bitmap.createBitmap(pixels, y * w, w, 1, Bitmap.Config.ARGB_8888)
+                val row = Bitmap.createBitmap(pixels, y * w, w, w, 1, Bitmap.Config.ARGB_8888)
                 canvas.drawBitmap(row, 0f, (ext + y).toFloat(), null)
                 row.recycle()
             } else {
                 paint.alpha = alpha
-                val row = Bitmap.createBitmap(pixels, y * w, w, 1, Bitmap.Config.ARGB_8888)
+                val row = Bitmap.createBitmap(pixels, y * w, w, w, 1, Bitmap.Config.ARGB_8888)
                 canvas.drawBitmap(row, 0f, (ext + y).toFloat(), paint)
                 row.recycle()
             }
