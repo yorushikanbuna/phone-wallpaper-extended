@@ -9,7 +9,7 @@ object WallpaperExtender {
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
     fun extend(source: Bitmap, phoneW: Int, phoneH: Int, modifyZone: Int = -1,
-               position: String = "top"): Result {
+               position: String = "top", sameColor: Boolean = false): Result {
         val w = source.width; val h = source.height
         val targetH = (w / (phoneW.toFloat() / phoneH)).roundToInt()
         val ext = targetH - h
@@ -23,34 +23,41 @@ object WallpaperExtender {
         val sampleH = min(30, h)
         val top = Bitmap.createBitmap(source, 0, 0, w, sampleH)
         val blurred = blur(top, 40f)
-        var fillColor = medianColor(blurred)
+        val baseFill = medianColor(blurred)
         top.recycle(); blurred.recycle()
 
-        // Brightness match: adjust fill L to match gradient boundary
-        val boundaryY = min(zone, h - 1)
-        val bH = min(20, h - maxOf(0, boundaryY - 10))
-        val bTop = maxOf(0, boundaryY - 10)
-        val boundary = Bitmap.createBitmap(source, 0, bTop, w, bH)
-        val bPixels = IntArray(w * bH)
-        boundary.getPixels(bPixels, 0, w, 0, 0, w, bH)
-        var bSum = 0f; var bCount = 0
-        for (c in bPixels) { bSum += 0.299f*(c shr 16 and 0xFF) + 0.587f*(c shr 8 and 0xFF) + 0.114f*(c and 0xFF); bCount++ }
-        val bLum = bSum / bCount / 255f
-        boundary.recycle()
+        // Brightness match per-boundary
+        fun matchLum(y: Int): Int {
+            val t = maxOf(0, y - 10); val hh = min(20, h - t)
+            if (hh <= 0) return baseFill
+            val bmp = Bitmap.createBitmap(source, 0, t, w, hh)
+            val px = IntArray(w * hh); bmp.getPixels(px, 0, w, 0, 0, w, hh)
+            var sum=0f; for(c in px) sum+=0.299f*(c shr 16 and 0xFF)+0.587f*(c shr 8 and 0xFF)+0.114f*(c and 0xFF)
+            val bLum=sum/px.size/255f; bmp.recycle()
+            // HSL match
+            val fR=baseFill shr 16 and 0xFF; val fG=baseFill shr 8 and 0xFF; val fB=baseFill and 0xFF
+            val fRf=fR/255f;val fGf=fG/255f;val fBf=fB/255f
+            val mx=maxOf(fRf,fGf,fBf);val mn=minOf(fRf,fGf,fBf);val d=mx-mn
+            var fH=0f;var fS=0f
+            if(d>0f){fS=if((mx+mn)/2f>.5f)d/(2f-mx-mn) else d/(mx+mn)
+                fH=if(mx==fRf)((fGf-fBf)/d+(if(fGf<fBf)6f else 0f))/6f
+                else if(mx==fGf)((fBf-fRf)/d+2f)/6f else((fRf-fGf)/d+4f)/6f}
+            val q=if(bLum<.5f)bLum*(1f+fS)else bLum+fS-bLum*fS;val p=2f*bLum-q
+            fun hue(h:Float):Int{var t=h;if(t<0f)t+=1f;if(t>1f)t-=1f
+                return (if(t<1f/6f)p+(q-p)*6f*t else if(t<.5f)q else if(t<2f/3f)p+(q-p)*(2f/3f-t)*6f else p)*255f roundToInt 0xFF}
+            return 0xFF shl 24 or (hue(fH+1f/3f) shl 16) or (hue(fH) shl 8) or hue(fH-1f/3f)
+        }
+        val fillColor = when(position){"center"->matchLum(halfZone);"bottom"->matchLum(h-zone);else->matchLum(zone)}
+        val fillColor2 = if(position=="center" && !sameColor) matchLum(h-halfZone) else fillColor
 
-        val fR = fillColor shr 16 and 0xFF
-        val fG = fillColor shr 8 and 0xFF
-        val fB = fillColor and 0xFF
-        val fLum = (0.299f*fR + 0.587f*fG + 0.114f*fB) / 255f
-        val factor = if (fLum > 0.01f) bLum / fLum else 1f
-        fillColor = 0xFF shl 24 or
-            (min(255, (fR * factor).roundToInt()) shl 16) or
-            (min(255, (fG * factor).roundToInt()) shl 8) or
-            min(255, (fB * factor).roundToInt())
-
-        // 2. Pure solid fill background
+        // 2. Fill background (two-colour for center mode)
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
         bg.eraseColor(fillColor)
+        if (position == "center") {
+            // Draw bottom extension bar with second fill colour
+            val botPaint = Paint(); botPaint.color = fillColor2
+            Canvas(bg).drawRect(0f, (topOffset + h).toFloat(), w.toFloat(), targetH.toFloat(), botPaint)
+        }
 
         // 3. Exponential alpha gradient
         val denom = 1.0 - exp(-EXP_K)

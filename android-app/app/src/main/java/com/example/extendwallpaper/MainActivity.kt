@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.rbBottom -> "bottom"
                 else -> "top"
             }
+            binding.cbSameColor.visibility = if (pos == "center") android.view.View.VISIBLE else android.view.View.GONE
             binding.previewView.setPosition(pos)
         }
 
@@ -136,7 +137,8 @@ class MainActivity : AppCompatActivity() {
                 val pos = when (binding.rgPosition.checkedRadioButtonId) {
                     R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
                 }
-                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos)
+                val sameColor = binding.cbSameColor.isChecked
+                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor)
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
                     if (bmp != sourceBitmap) bmp.recycle()

@@ -46,8 +46,11 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   }
 
   const modifyZone = opts.modifyZone ?? Math.round(height * 0.1);
+  const position   = opts.position   ?? 'top';
   const fillBlur   = opts.fillBlur   ?? FILL_BLUR;
-  const expK       = opts.expK       ?? EXP_K;
+  const expK       = (opts.expK != null && opts.expK > 0) ? opts.expK : EXP_K;
+
+  if (modifyZone <= 0) throw new Error('modifyZone must be > 0');
 
   // ── 1. Sample fill from image top (matches seam colour for feathering) ──
   const fillSampleTop = 0;
@@ -75,19 +78,7 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   const mid = Math.floor(allR.length / 2);
   let fR = allR[mid], fG = allG[mid], fB = allB[mid];
 
-  // ── Brightness match: adjust fill L to match gradient boundary ──
-  const boundaryY = Math.min(modifyZone, height - 1);
-  const boundaryRaw = await sharp(inputPath)
-    .extract({ left: 0, top: Math.max(0, boundaryY - 10), width, height: Math.min(20, height - boundaryY + 10) })
-    .removeAlpha().raw().toBuffer();
-  let bSumR = 0, bSumG = 0, bSumB = 0;
-  for (let i = 0; i < boundaryRaw.length; i += 3) {
-    bSumR += boundaryRaw[i]; bSumG += boundaryRaw[i + 1]; bSumB += boundaryRaw[i + 2];
-  }
-  const bCount = boundaryRaw.length / 3;
-  const bR = Math.round(bSumR / bCount), bG = Math.round(bSumG / bCount), bB = Math.round(bSumB / bCount);
-
-  // RGB → HSL, match L, HSL → RGB
+  // ── Brightness match: per-boundary fill colour ──
   const rgbToHsl = (r,g,b) => {
     r/=255;g/=255;b/=255; const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
     let h=0,s=0,l=(mx+mn)/2;
@@ -101,27 +92,83 @@ async function extendImage(inputPath, outputPath, opts = {}) {
     const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q;
     return[Math.round(hue2rgb(p,q,h+1/3)*255),Math.round(hue2rgb(p,q,h)*255),Math.round(hue2rgb(p,q,h-1/3)*255)];
   };
+  const matchLuminance = async (y) => {
+    const top = Math.max(0, y - 10);
+    const h = Math.min(20, height - top);
+    if (h <= 0) return [fR,fG,fB];
+    const raw = await sharp(inputPath)
+      .extract({left:0,top,width,height:h}).removeAlpha().raw().toBuffer();
+    let sR=0,sG=0,sB=0;
+    for(let i=0;i<raw.length;i+=3){sR+=raw[i];sG+=raw[i+1];sB+=raw[i+2];}
+    const n=raw.length/3;
+    const [,,bl] = rgbToHsl(Math.round(sR/n), Math.round(sG/n), Math.round(sB/n));
+    const [fh,fs] = rgbToHsl(fR,fG,fB);
+    return hslToRgb(fh, fs, bl);
+  };
 
-  const [fh,fs] = rgbToHsl(fR,fG,fB);
-  const [,,bl] = rgbToHsl(bR,bG,bB);
-  [fR,fG,fB] = hslToRgb(fh, fs, bl); // fill hue/sat + boundary lightness
+  let fR2 = fR, fG2 = fG, fB2 = fB; // second fill for center/bottom
+  if (position === 'center') {
+    [fR,fG,fB] = await matchLuminance(Math.round(modifyZone / 2));
+    [fR2,fG2,fB2] = await matchLuminance(height - Math.round(modifyZone / 2));
+  } else if (position === 'bottom') {
+    [fR,fG,fB] = await matchLuminance(height - modifyZone);
+  } else {
+    [fR,fG,fB] = await matchLuminance(modifyZone);
+  }
 
-  // ── 2. Pure solid fill background ──
-  const fillBg = await sharp({
-    create: { width, height: targetH, channels: 4,
+  // ── 2. Fill background (with two-colour support for center) ──
+  const fillTop = await sharp({
+    create: { width, height: extendPx, channels: 4,
       background: { r: fR, g: fG, b: fB, alpha: 1 } },
   }).png().toBuffer();
+  const fillBot = await sharp({
+    create: { width, height: extendPx, channels: 4,
+      background: { r: fR2, g: fG2, b: fB2, alpha: 1 } },
+  }).png().toBuffer();
 
-  // ── 3. Alpha gradient (pure exponential) ──
+  const topOffset = position === 'bottom' ? extendPx
+    : position === 'center' ? Math.floor(extendPx / 2) : extendPx;
+  const halfExt = Math.floor(extendPx / 2);
+
+  let fillBg;
+  if (position === 'center') {
+    fillBg = await sharp({
+      create: { width, height: targetH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+    })
+      .composite([
+        { input: fillTop, top: 0, left: 0 },
+        { input: fillBot, top: halfExt + height, left: 0 },
+      ])
+      .png().toBuffer();
+  } else {
+    fillBg = await sharp({
+      create: { width, height: targetH, channels: 4,
+        background: { r: fR, g: fG, b: fB, alpha: 1 } },
+    }).png().toBuffer();
+  }
+
+  // ── 3. Alpha gradient (pure exponential, per-position) ──
   const origWithAlphaBuf = Buffer.alloc(height * width * 4);
   const origRaw = await sharp(inputPath).removeAlpha().raw().toBuffer();
   const denom = 1 - Math.exp(-expK);
+  const halfZone = Math.floor(modifyZone / 2);
+  const alphaAt = (dist, range) => {
+    const t = Math.min(dist / range, 1);
+    const curve = (Math.exp(-expK * (1 - t)) - Math.exp(-expK)) / denom;
+    return Math.round(255 * curve);
+  };
 
   for (let y = 0; y < height; y++) {
-    const t = Math.min(y / modifyZone, 1);
-    const curve = (Math.exp(-expK * (1 - t)) - Math.exp(-expK)) / denom;
-    const alpha = Math.round(255 * curve);
-
+    let alpha;
+    if (position === 'bottom') {
+      alpha = y >= height - modifyZone ? alphaAt(height - y, modifyZone) : 255;
+    } else if (position === 'center') {
+      if (y < halfZone) alpha = alphaAt(y, halfZone);
+      else if (y >= height - halfZone) alpha = alphaAt(height - y, halfZone);
+      else alpha = 255;
+    } else {
+      alpha = y < modifyZone ? alphaAt(y, modifyZone) : 255;
+    }
     for (let x = 0; x < width; x++) {
       const si = (y * width + x) * 3;
       const di = (y * width + x) * 4;
@@ -137,7 +184,7 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   }).png().toBuffer();
 
   await sharp(fillBg)
-    .composite([{ input: origWithAlpha, top: extendPx, left: 0, blend: 'over' }])
+    .composite([{ input: origWithAlpha, top: topOffset, left: 0, blend: 'over' }])
     .png()
     .toFile(outputPath);
 
@@ -198,9 +245,9 @@ async function main() {
   const opts = {};
   if (args.target)     opts.target     = args.target;
   if (args.ratio)      opts.ratio      = args.ratio;
-  if (args.modifyZone) opts.modifyZone = args.modifyZone;
-  if (args.fillBlur)   opts.fillBlur   = args.fillBlur;
-  if (args.expK)       opts.expK       = args.expK;
+  if (args.modifyZone != null) opts.modifyZone = args.modifyZone;
+  if (args.fillBlur != null)   opts.fillBlur   = args.fillBlur;
+  if (args.expK != null)       opts.expK       = args.expK;
 
   try {
     const { extendPx, fillColor, width, height, targetH } =
