@@ -68,14 +68,66 @@ object WallpaperExtender {
         return Result(bg, fillColor, ext)
     }
 
+    // ── Stacked box blur (approximates Gaussian, 3 passes) ──
     private fun blur(src: Bitmap, radius: Float): Bitmap {
-        val s = (1f / (1f + radius * 0.1f)).coerceIn(0.02f, 1f)
-        val sw = (src.width * s).roundToInt().coerceAtLeast(1)
-        val sh = (src.height * s).roundToInt().coerceAtLeast(1)
-        val small = Bitmap.createScaledBitmap(src, sw, sh, true)
-        val result = Bitmap.createScaledBitmap(small, src.width, src.height, true)
-        small.recycle()
-        return result
+        val r = radius.roundToInt().coerceAtLeast(2)
+        val w = src.width; val h = src.height
+        val pixels = IntArray(w * h)
+        src.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        // 3 passes approximates true Gaussian
+        boxBlur(pixels, w, h, r)
+        boxBlur(pixels, w, h, r)
+        boxBlur(pixels, w, h, r)
+
+        return Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun boxBlur(pixels: IntArray, w: Int, h: Int, radius: Int) {
+        val tmp = pixels.copyOf()
+        val kernel = radius * 2 + 1
+
+        // Horizontal pass
+        for (y in 0 until h) {
+            var sumR = 0; var sumG = 0; var sumB = 0; var count = 0
+            for (x in 0 until w + radius) {
+                // Add right edge
+                if (x < w) {
+                    val c = tmp[y * w + x]
+                    sumR += c shr 16 and 0xFF; sumG += c shr 8 and 0xFF; sumB += c and 0xFF; count++
+                }
+                // Remove left edge
+                if (x >= kernel) {
+                    val c = tmp[y * w + (x - kernel)]
+                    sumR -= c shr 16 and 0xFF; sumG -= c shr 8 and 0xFF; sumB -= c and 0xFF; count--
+                }
+                // Write center
+                if (x >= radius) {
+                    val cx = x - radius; val avgR = sumR / count; val avgG = sumG / count; val avgB = sumB / count
+                    pixels[y * w + cx] = 0xFF shl 24 or (avgR shl 16) or (avgG shl 8) or avgB
+                }
+            }
+        }
+
+        // Vertical pass
+        tmp.copyInto(pixels) // swap
+        for (x in 0 until w) {
+            var sumR = 0; var sumG = 0; var sumB = 0; var count = 0
+            for (y in 0 until h + radius) {
+                if (y < h) {
+                    val c = tmp[y * w + x]
+                    sumR += c shr 16 and 0xFF; sumG += c shr 8 and 0xFF; sumB += c and 0xFF; count++
+                }
+                if (y >= kernel) {
+                    val c = tmp[(y - kernel) * w + x]
+                    sumR -= c shr 16 and 0xFF; sumG -= c shr 8 and 0xFF; sumB -= c and 0xFF; count--
+                }
+                if (y >= radius) {
+                    val cy = y - radius; val avgR = sumR / count; val avgG = sumG / count; val avgB = sumB / count
+                    pixels[cy * w + x] = 0xFF shl 24 or (avgR shl 16) or (avgG shl 8) or avgB
+                }
+            }
+        }
     }
 
     private fun medianColor(bmp: Bitmap): Int {
