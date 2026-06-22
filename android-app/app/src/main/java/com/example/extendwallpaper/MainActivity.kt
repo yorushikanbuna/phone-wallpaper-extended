@@ -222,10 +222,10 @@ class MainActivity : AppCompatActivity() {
         val c = medianColor(small); strip.recycle(); small.recycle(); return c
     }
 
-    /** Preserve hue+saturation of [base], replace brightness with a 30-row strip from the top or bottom edge. */
+    /** Preserve hue+saturation of [base], replace brightness with a [refH]-row strip from the top or bottom edge. */
     private fun hslMatchColor(bmp: Bitmap, base: Int, fromTop: Boolean): Int {
         val h = bmp.height; val w = bmp.width
-        val refH = 30
+        val refH = 15
         val startY = if (fromTop) 0 else (h - refH).coerceAtLeast(0)
         val sh = minOf(refH, h - startY)
         if (sh <= 0) return base
