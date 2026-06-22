@@ -15,6 +15,7 @@ class PreviewView @JvmOverloads constructor(
     private var fraction = 0.1f
     private var phoneRatio = 1216f / 2640f
     private val paint = Paint()
+    private var scale = 1f
 
     fun setBitmap(bmp: Bitmap) { source = bmp; requestLayout() }
     fun setFillColor(color: Int) { fillColor = color; invalidate() }
@@ -25,38 +26,55 @@ class PreviewView @JvmOverloads constructor(
         val src = source
         if (src == null) { super.onMeasure(widthMeasureSpec, heightMeasureSpec); return }
 
-        val vw = MeasureSpec.getSize(widthMeasureSpec)
-        val imgH = (src.height * vw.toFloat() / src.width).roundToInt()
-        val targetH = (src.width / phoneRatio).roundToInt()
-        val extPx = targetH - src.height
-        val extH = if (extPx > 0) (extPx * vw.toFloat() / src.width).roundToInt() else 0
-        setMeasuredDimension(vw, extH + 2 + imgH)
+        val maxW = MeasureSpec.getSize(widthMeasureSpec)
+        val maxH = MeasureSpec.getSize(heightMeasureSpec)
+
+        // Natural size at full width
+        val imgNatH = src.height * (maxW.toFloat() / src.width)
+        val targetH = src.width / phoneRatio
+        val extNatH = ((targetH - src.height) * (maxW.toFloat() / src.width)).coerceAtLeast(0f)
+        val natH = extNatH + 2f + imgNatH
+
+        scale = if (natH > maxH) maxH / natH else 1f
+        val drawW = (maxW * scale).roundToInt()
+        val drawH = maxH
+
+        setMeasuredDimension(drawW, drawH)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val src = source ?: return
         val vw = width.toFloat()
+        val vh = height.toFloat()
 
+        // Full image height at this width
         val imgH = src.height * (vw / src.width)
         val targetH = src.width / phoneRatio
-        val extPx = targetH - src.height
-        val extH = if (extPx > 0) extPx * (vw / src.width) else 0f
+        val extH = ((targetH - src.height) * (vw / src.width)).coerceAtLeast(0f)
+        val gap = 2f * scale
+
+        // Center vertically
+        val totalH = extH + gap + imgH
+        val top = (vh - totalH) / 2f
 
         val r = Color.red(fillColor)
         val g = Color.green(fillColor)
         val b = Color.blue(fillColor)
 
+        // Extension bar
         paint.shader = null
         paint.color = fillColor
-        canvas.drawRect(0f, 0f, vw, extH, paint)
+        canvas.drawRect(0f, top, vw, top + extH, paint)
 
-        val dstRect = Rect(0, extH.roundToInt() + 2, vw.roundToInt(), (extH + 2f + imgH).roundToInt())
+        // Original image
+        val dstRect = Rect(0, (top + extH + gap).roundToInt(), vw.roundToInt(), (top + extH + gap + imgH).roundToInt())
         canvas.drawBitmap(src, null, dstRect, paint)
 
+        // Gradient overlay
         val fadeH = imgH * fraction
         if (fadeH > 0) {
-            val y0 = extH + 2f
+            val y0 = top + extH + gap
             paint.shader = LinearGradient(
                 0f, y0, 0f, y0 + fadeH,
                 intArrayOf(Color.argb(255, r, g, b), Color.argb(0, r, g, b)),
