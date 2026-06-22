@@ -181,23 +181,20 @@ await extendImage('in.png', 'out.png', {
 
 ## Examples / 效果展示
 
-> Top: original — Bottom: extended. 上：原图 — 下：延展后
+> Left: original — Right: extended ｜ 左：原图 — 右：延展后
 
 <details>
 <summary>瑞希</summary>
 <img src="images/瑞希-compare.png" width="600">
 </details>
-
 <details>
 <summary>绘名</summary>
 <img src="images/绘名-compare.png" width="600">
 </details>
-
 <details>
 <summary>奏</summary>
 <img src="images/奏-compare.png" width="600">
 </details>
-
 <details>
 <summary>真东</summary>
 <img src="images/真东-compare.png" width="600">
