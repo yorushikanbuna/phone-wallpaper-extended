@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
     ) { uri: Uri? -> uri?.let {
         sourceBitmap = loadBitmap(it)
         sourceBitmap?.let { bmp ->
-            binding.tvImageInfo.text = "$\u5df2\u9009\u62e9: ${bmp.width} \u00d7 ${bmp.height}"
+            binding.tvImageInfo.text = "\u5df2\u9009\u62e9: ${bmp.width} \u00d7 ${bmp.height}"
             binding.btnGenerate.isEnabled = true
         }
     }}
