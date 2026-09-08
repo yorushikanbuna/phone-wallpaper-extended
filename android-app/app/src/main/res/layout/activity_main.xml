@@ -209,86 +209,43 @@
                     android:layout_marginTop="4dp"
                     android:visibility="gone" />
 
-                <!-- Minimal color control added without changing the old control rhythm. -->
+                <!-- One action keeps automatic sampling and manual colour in the same place. -->
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:orientation="vertical">
+                    android:layout_height="44dp"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="36dp"
-                        android:gravity="center_vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="填充色"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_muted"
+                        android:layout_marginEnd="8dp" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="填充色"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_muted"
-                            android:layout_marginEnd="8dp" />
+                    <View
+                        android:id="@+id/vColorSwatch"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/color_swatch" />
 
-                        <View
-                            android:id="@+id/vColorSwatch"
-                            android:layout_width="22dp"
-                            android:layout_height="22dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/color_swatch" />
-
-                        <TextView
-                            android:id="@+id/tvAutoColor"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:layout_height="wrap_content"
-                            android:text="自动取色"
-                            android:textSize="11sp"
-                            android:textColor="@color/text_muted" />
-
-                        <CheckBox
-                            android:id="@+id/cbCustomColor"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="自定义"
-                            android:textSize="12sp"
-                            android:textColor="@color/text_primary" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
+                    <TextView
+                        android:id="@+id/tvColorMode"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="40dp"
                         android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <EditText
-                            android:id="@+id/etFillColor"
-                            android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_weight="1"
-                            android:enabled="false"
-                            android:hint="#RRGGBB"
-                            android:inputType="textCapCharacters"
-                            android:maxLength="7"
-                            android:paddingHorizontal="12dp"
-                            android:text="#000000"
-                            android:textColor="@color/text_primary"
-                            android:textSize="13sp"
-                            android:background="@drawable/input_field_bg" />
-
-                        <TextView
-                            android:id="@+id/btnAutoColor"
-                            android:layout_width="wrap_content"
-                            android:layout_height="40dp"
-                            android:layout_marginStart="8dp"
-                            android:gravity="center"
-                            android:paddingHorizontal="12dp"
-                            android:text="自动"
-                            android:textSize="12sp"
-                            android:textColor="@color/accent_primary"
-                            android:background="@drawable/input_field_bg"
-                            android:clickable="true"
-                            android:focusable="true" />
-                    </LinearLayout>
+                        android:paddingHorizontal="12dp"
+                        android:text="自动取色"
+                        android:textSize="12sp"
+                        android:textColor="@color/accent_primary"
+                        android:background="@drawable/input_field_bg"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:contentDescription="打开填充颜色选择" />
                 </LinearLayout>
 
                 <LinearLayout

@@ -8,13 +8,16 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
+import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.Toast
 import kotlinx.coroutines.Job
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.extendwallpaper.databinding.ActivityMainBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 import kotlin.math.roundToInt
 
@@ -28,7 +31,6 @@ class MainActivity : AppCompatActivity() {
     private var customColorEnabled = false
     private var gradientPercent = 10
     private var generateJob: Job? = null
-    private var updatingColorField = false
 
     private val pickImage = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -64,40 +66,7 @@ class MainActivity : AppCompatActivity() {
             updatePreviewColors()
         }
 
-        binding.cbCustomColor.setOnCheckedChangeListener { _, checked ->
-            customColorEnabled = checked
-            binding.etFillColor.isEnabled = checked
-            updateColorSwatch()
-            updatePreviewColors()
-        }
-
-        binding.etFillColor.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
-            override fun afterTextChanged(s: Editable?) {
-                if (updatingColorField) return
-                val color = parseHexColor(s?.toString().orEmpty())
-                if (color != null) {
-                    customColor = color
-                    binding.etFillColor.error = null
-                    updateColorSwatch()
-                    updatePreviewColors()
-                } else if (!s.isNullOrBlank() && s.length >= 6) {
-                    binding.etFillColor.error = "请输入 6 位 HEX 颜色"
-                }
-            }
-        })
-
-        binding.btnAutoColor.setOnClickListener {
-            customColorEnabled = false
-            binding.cbCustomColor.isChecked = false
-            customColor = fillColor
-            setFillColorField(customColor)
-            binding.etFillColor.error = null
-            updateColorSwatch()
-            updatePreviewColors()
-        }
+        binding.tvColorMode.setOnClickListener { showColorDialog() }
 
         binding.sbModifyZone.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -109,7 +78,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar) {}
         })
 
-        binding.etFillColor.isEnabled = false
         updateColorSwatch()
     }
 
@@ -131,10 +99,6 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 fillColor = topC
                 fillColor2 = botC
-                if (!customColorEnabled) {
-                    customColor = topC
-                    setFillColorField(topC)
-                }
                 updateColorSwatch()
                 updatePreviewColors()
             }
@@ -178,11 +142,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun generate() {
-        val customActive = binding.cbCustomColor.isChecked
-        if (customActive && parseHexColor(binding.etFillColor.text.toString()) == null) {
-            binding.etFillColor.error = "请输入 6 位 HEX 颜色"
-            return
-        }
+        val customActive = customColorEnabled
 
         // Reload at full resolution for output quality
         val bmp = sourceUri?.let { loadBitmap(it, sample = false) } ?: sourceBitmap ?: return
@@ -257,11 +217,47 @@ class MainActivity : AppCompatActivity() {
         return try { Color.parseColor("#$normalized") } catch (_: IllegalArgumentException) { null }
     }
 
-    private fun setFillColorField(color: Int) {
-        updatingColorField = true
-        binding.etFillColor.setText(String.format("#%06X", color and 0x00FFFFFF))
-        binding.etFillColor.setSelection(binding.etFillColor.text.length)
-        updatingColorField = false
+    private fun showColorDialog() {
+        val input = EditText(this).apply {
+            hint = "#RRGGBB"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            maxLength = 7
+            setSingleLine(true)
+            val initialColor = if (customColorEnabled) customColor else fillColor
+            setText(String.format("#%06X", initialColor and 0x00FFFFFF))
+            selectAll()
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("选择填充色")
+            .setMessage("输入 HEX 颜色，例如 #F2E8FF")
+            .setView(input)
+            .setNegativeButton("取消", null)
+            .setNeutralButton("自动取色", null)
+            .setPositiveButton("使用颜色", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_NEUTRAL).setOnClickListener {
+                customColorEnabled = false
+                updateColorSwatch()
+                updatePreviewColors()
+                dialog.dismiss()
+            }
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val color = parseHexColor(input.text.toString())
+                if (color == null) {
+                    input.error = "请输入 6 位 HEX 颜色"
+                    return@setOnClickListener
+                }
+                customColor = color
+                customColorEnabled = true
+                updateColorSwatch()
+                updatePreviewColors()
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
     }
 
     private fun updateColorSwatch() {
@@ -272,8 +268,16 @@ class MainActivity : AppCompatActivity() {
             setColor(color)
             setStroke(1, Color.LTGRAY)
         }
-        binding.tvAutoColor.text =
-            if (fillColor == Color.BLACK) "自动取色" else "自动：${String.format("#%06X", fillColor and 0x00FFFFFF)}"
+        val autoLabel = if (fillColor == Color.BLACK) {
+            "自动取色"
+        } else {
+            "自动：${String.format("#%06X", fillColor and 0x00FFFFFF)}"
+        }
+        binding.tvColorMode.text = if (customColorEnabled) {
+            "自定义：${String.format("#%06X", customColor and 0x00FFFFFF)}"
+        } else {
+            autoLabel
+        }
     }
 
     private fun medianColor(bmp: Bitmap): Int {
