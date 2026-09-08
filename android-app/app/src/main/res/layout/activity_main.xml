@@ -1,280 +1,522 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/bg"
-    android:fitsSystemWindows="true">
+    android:fillViewport="true"
+    android:clipToPadding="false"
+    android:paddingBottom="20dp">
 
-        <!-- Title bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="18dp">
+
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:paddingHorizontal="20dp"
-            android:layout_marginTop="12dp">
+            android:orientation="horizontal">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="壁纸延展"
-                android:textSize="24sp"
-                android:textColor="@color/text_primary"
-                android:fontFamily="sans-serif-medium" />
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-            <TextView
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textColor="@color/text_primary"
+                    android:textSize="26sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/app_subtitle"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnPickImage"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:gravity="center"
-                android:paddingHorizontal="16dp"
-                android:text="📷 选择"
-                android:textSize="14sp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/select_image"
+                android:minHeight="48dp"
+                android:text="@string/select_image"
+                android:textAllCaps="false"
                 android:textColor="@color/accent_primary"
-                android:background="@drawable/input_field_bg"
-                android:clickable="true"
-                android:focusable="true" />
+                app:cornerRadius="16dp"
+                app:icon="@drawable/ic_photo"
+                app:iconTint="@color/accent_primary"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvImageInfo"
-            android:layout_width="wrap_content"
-            android:layout_height="24dp"
-            android:layout_marginStart="20dp"
-            android:layout_marginBottom="4dp"
-            android:gravity="center_vertical"
-            android:text="选择一张图片吧～"
-            android:textSize="12sp"
-            android:textColor="@color/text_muted"
-            android:paddingHorizontal="10dp"
-            android:background="@drawable/input_field_bg" />
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/sourceCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
 
-        <!-- Preview — natural proportions, scroll if needed -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:minHeight="54dp"
+                android:orientation="horizontal"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="10dp">
+
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/status_dot" />
+
+                <TextView
+                    android:id="@+id/tvImageInfo"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/choose_image_hint"
+                    android:textColor="@color/text_muted"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/source_label"
+                    android:textColor="@color/accent_primary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="8dp"
+            android:layout_height="340dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/preview_frame"
             android:elevation="2dp"
-            android:gravity="center">
+            android:padding="4dp">
 
             <com.example.extendwallpaper.PreviewView
                 android:id="@+id/previewView"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
+                android:layout_gravity="center" />
+
+            <TextView
+                android:id="@+id/tvPreviewEmpty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:layout_margin="3dp" />
+                android:drawablePadding="8dp"
+                android:text="@string/preview_empty"
+                android:textColor="@color/text_muted"
+                android:textSize="14sp" />
         </FrameLayout>
 
-        <!-- Bottom controls card -->
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="32dp"
-            app:cardElevation="8dp"
+            android:layout_marginTop="14dp"
             app:cardBackgroundColor="@color/surface"
-            android:clipChildren="false">
+            app:cardCornerRadius="24dp"
+            app:cardElevation="4dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingHorizontal="20dp"
-                android:paddingTop="16dp"
-                android:paddingBottom="20dp">
+                android:paddingHorizontal="18dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="@string/settings_subtitle"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/resolution_label"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="14dp">
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="分辨率"
-                        android:textSize="14sp"
-                        android:textColor="@color/text_muted"
-                        android:layout_marginEnd="12dp" />
-
-                    <EditText
-                        android:id="@+id/etPhoneWidth"
+                    <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="0dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_height="44dp"
-                        android:inputType="number"
-                        android:text="1216"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="#C4BFD0"
-                        android:textSize="15sp"
-                        android:gravity="center"
-                        android:background="@drawable/input_field_bg" />
+                        android:hint="@string/width_hint"
+                        app:boxBackgroundMode="outline"
+                        app:boxCornerRadiusBottomEnd="14dp"
+                        app:boxCornerRadiusBottomStart="14dp"
+                        app:boxCornerRadiusTopEnd="14dp"
+                        app:boxCornerRadiusTopStart="14dp">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etPhoneWidth"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLines="1"
+                            android:text="1216"
+                            android:textAlignment="center"
+                            android:textSize="15sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
                     <TextView
-                        android:layout_width="28dp"
-                        android:layout_height="44dp"
+                        android:layout_width="30dp"
+                        android:layout_height="56dp"
                         android:gravity="center"
                         android:text="×"
-                        android:textSize="16sp"
-                        android:textColor="@color/text_muted" />
-
-                    <EditText
-                        android:id="@+id/etPhoneHeight"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="44dp"
-                        android:inputType="number"
-                        android:text="2640"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="#C4BFD0"
-                        android:textSize="15sp"
-                        android:gravity="center"
-                        android:background="@drawable/input_field_bg" />
-                </LinearLayout>
-
-                <!-- Position selector -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="8dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="延展位置"
-                        android:textSize="13sp"
                         android:textColor="@color/text_muted"
-                        android:layout_marginEnd="12dp" />
+                        android:textSize="18sp" />
 
-                    <RadioGroup
-                        android:id="@+id/rgPosition"
+                    <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="0dp"
-                        android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
+                        android:layout_weight="1"
+                        android:hint="@string/height_hint"
+                        app:boxBackgroundMode="outline"
+                        app:boxCornerRadiusBottomEnd="14dp"
+                        app:boxCornerRadiusBottomStart="14dp"
+                        app:boxCornerRadiusTopEnd="14dp"
+                        app:boxCornerRadiusTopStart="14dp">
 
-                        <RadioButton
-                            android:id="@+id/rbTop"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etPhoneHeight"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="上方"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_primary"
-                            android:checked="true" />
-
-                        <RadioButton
-                            android:id="@+id/rbCenter"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:layout_height="wrap_content"
-                            android:text="居中"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_primary" />
-
-                        <RadioButton
-                            android:id="@+id/rbBottom"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:layout_height="wrap_content"
-                            android:text="下方"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_primary" />
-                    </RadioGroup>
+                            android:inputType="number"
+                            android:maxLines="1"
+                            android:text="2640"
+                            android:textAlignment="center"
+                            android:textSize="15sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
 
-                <CheckBox
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/mode_label"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <RadioGroup
+                    android:id="@+id/rgMode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/rbSolid"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:buttonTint="@color/accent_primary"
+                        android:checked="true"
+                        android:text="@string/mode_solid"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp" />
+
+                    <RadioButton
+                        android:id="@+id/rbBlur"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:buttonTint="@color/accent_primary"
+                        android:text="@string/mode_blur"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp" />
+
+                    <RadioButton
+                        android:id="@+id/rbMirror"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:buttonTint="@color/accent_primary"
+                        android:text="@string/mode_mirror"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp" />
+                </RadioGroup>
+
+                <TextView
+                    android:id="@+id/tvModeHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/position_label"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <RadioGroup
+                    android:id="@+id/rgPosition"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/rbTop"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:buttonTint="@color/accent_primary"
+                        android:checked="true"
+                        android:text="@string/position_top"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+
+                    <RadioButton
+                        android:id="@+id/rbCenter"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:buttonTint="@color/accent_primary"
+                        android:text="@string/position_center"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+
+                    <RadioButton
+                        android:id="@+id/rbBottom"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:buttonTint="@color/accent_primary"
+                        android:text="@string/position_bottom"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+                </RadioGroup>
+
+                <com.google.android.material.checkbox.MaterialCheckBox
                     android:id="@+id/cbSameColor"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="上下同色"
-                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/same_color"
                     android:textColor="@color/text_muted"
-                    android:layout_marginTop="4dp"
+                    android:textSize="12sp"
                     android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/customColorPanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/input_field_bg"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="8dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:id="@+id/vColorSwatch"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/color_swatch" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/fill_color_label"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp"
+                                android:fontFamily="sans-serif-medium" />
+
+                            <TextView
+                                android:id="@+id/tvAutoColor"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/auto_color_hint"
+                                android:textColor="@color/text_muted"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/swCustomColor"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:contentDescription="@string/custom_color"
+                            android:text="@string/custom_color"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilColorHex"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="@string/hex_color_hint"
+                            app:boxBackgroundMode="outline"
+                            app:boxCornerRadiusBottomEnd="12dp"
+                            app:boxCornerRadiusBottomStart="12dp"
+                            app:boxCornerRadiusTopEnd="12dp"
+                            app:boxCornerRadiusTopStart="12dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etColorHex"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textCapCharacters"
+                                android:maxLength="7"
+                                android:maxLines="1"
+                                android:text="#000000"
+                                android:textSize="14sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnUseAutoColor"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:layout_marginStart="6dp"
+                            android:text="@string/use_auto_color"
+                            android:textAllCaps="false"
+                            android:textColor="@color/accent_primary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="2dp">
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="0dp"
-                        android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:text="渐变区域"
+                        android:layout_weight="1"
+                        android:text="@string/gradient_label"
+                        android:textColor="@color/text_primary"
                         android:textSize="13sp"
-                        android:textColor="@color/text_muted" />
+                        android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:id="@+id/tvModifyZone"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="10%"
-                        android:textSize="14sp"
                         android:textColor="@color/accent_primary"
+                        android:textSize="14sp"
                         android:fontFamily="monospace" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/sbModifyZone"
                     android:layout_width="match_parent"
-                    android:layout_height="24dp"
+                    android:layout_height="40dp"
                     android:max="100"
                     android:progress="10"
-                    android:thumbTint="@color/accent_primary"
+                    android:progressBackgroundTint="@color/border"
                     android:progressTint="@color/accent_primary"
-                    android:progressBackgroundTint="#E8E4F0"
-                    android:layout_marginBottom="12dp" />
+                    android:thumbTint="@color/accent_primary" />
 
-                <LinearLayout
-                    android:id="@+id/btnGenerate"
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
-                    android:gravity="center"
-                    android:background="@drawable/btn_primary"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:elevation="4dp">
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGenerate"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="@string/generate_wallpaper"
+                        android:text="@string/generate_wallpaper"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_on_primary"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif-medium"
+                        app:backgroundTint="@color/accent_primary"
+                        app:cornerRadius="18dp" />
 
                     <ProgressBar
                         android:id="@+id/progressBar"
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:layout_marginEnd="8dp"
-                        android:visibility="gone"
-                        android:indeterminateTint="@color/text_on_primary" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="生成壁纸 ✨"
-                        android:textSize="16sp"
-                        android:textColor="@color/text_on_primary"
-                        android:fontFamily="sans-serif-medium" />
-                </LinearLayout>
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:indeterminateTint="@color/text_on_primary"
+                        android:visibility="gone" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/tvResult"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textSize="11sp"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
                     android:textColor="@color/text_muted"
-                    android:gravity="center" />
+                    android:textSize="11sp" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
+        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
-
+</androidx.core.widget.NestedScrollView>

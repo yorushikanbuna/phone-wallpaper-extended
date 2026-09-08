@@ -1,4 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">壁纸延展</string>
+    <string name="app_subtitle">不裁切原图，适配长屏手机</string>
+    <string name="select_image">选择图片</string>
+    <string name="choose_image_hint">还没有选择图片</string>
+    <string name="source_label">原图</string>
+    <string name="preview_empty">选择图片后，这里会显示延展预览</string>
+    <string name="settings_title">生成设置</string>
+    <string name="settings_subtitle">先选择延展方式，再调整渐变范围</string>
+    <string name="resolution_label">目标比例</string>
+    <string name="width_hint">宽度</string>
+    <string name="height_hint">高度</string>
+    <string name="mode_label">延展模式</string>
+    <string name="mode_solid">纯色渐变</string>
+    <string name="mode_blur">模糊延展</string>
+    <string name="mode_mirror">镜像延展</string>
+    <string name="position_label">延展位置</string>
+    <string name="position_top">上方</string>
+    <string name="position_center">居中</string>
+    <string name="position_bottom">下方</string>
+    <string name="same_color">上下使用同一种颜色</string>
+    <string name="fill_color_label">填充颜色</string>
+    <string name="auto_color_hint">默认从图片边缘自动取色</string>
+    <string name="custom_color">自定义</string>
+    <string name="hex_color_hint">HEX 颜色</string>
+    <string name="use_auto_color">自动取色</string>
+    <string name="gradient_label">渐变区域</string>
+    <string name="generate_wallpaper">生成壁纸</string>
+    <string name="mode_solid_hint">用边缘颜色填充，并平滑过渡到原图。</string>
+    <string name="mode_blur_hint">把图片边缘模糊拉伸，适合照片和复杂背景。</string>
+    <string name="mode_mirror_hint">镜像边缘内容，适合纹理连续的图片。</string>
 </resources>

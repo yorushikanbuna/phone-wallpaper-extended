@@ -3,7 +3,7 @@ const sharp = require('sharp');
 
 // ── Defaults ──────────────────────────────────────────────
 const FILL_BLUR = 80;   // sigma for fill-colour blur
-const EXP_K     = 3;    // exponential S-curve steepness
+const EXP_K     = 1.5;  // matches the Android renderer
 
 // ── Core ───────────────────────────────────────────────────
 
@@ -17,8 +17,9 @@ const EXP_K     = 3;    // exponential S-curve steepness
  * @param {string}  [opts.target]      target resolution "WxH" (e.g. "1216x2640")
  * @param {number}  [opts.ratio]       target width / height (e.g. 1216/2640)
  * @param {number}  [opts.modifyZone]  px of transparency gradient on original top
+ * @param {string}  [opts.position]    top, center, or bottom
  * @param {number}  [opts.fillBlur]    blur sigma for fill-colour sampling
- * @param {number}  [opts.expK]        exponential steepness (default 3)
+ * @param {number}  [opts.expK]        exponential steepness (default 1.5, matching Android)
  */
 async function extendImage(inputPath, outputPath, opts = {}) {
   const meta = await sharp(inputPath).metadata();
@@ -53,8 +54,10 @@ async function extendImage(inputPath, outputPath, opts = {}) {
   if (modifyZone <= 0) throw new Error('modifyZone must be > 0');
 
   // ── 1. Sample fill from image top (matches seam colour for feathering) ──
-  const fillSampleTop = 0;
-  const FILL_SAMPLE_H = Math.min(30, height);
+  const FILL_SAMPLE_H = Math.min(15, height);
+  const fillSampleTop = position === 'bottom'
+    ? Math.max(0, height - FILL_SAMPLE_H)
+    : 0;
   const fillRaw = await sharp(inputPath)
     .extract({ left: 0, top: fillSampleTop, width, height: FILL_SAMPLE_H })
     .removeAlpha().raw().toBuffer();
@@ -184,9 +187,10 @@ function printHelp() {
     '  Options:',
     '    --target WxH      target phone resolution (e.g. 1216x2640)',
     '    --ratio N         alt: aspect ratio (e.g. 0.4606)',
+    '    --position P       top, center, or bottom (default: top)',
     '    --modify-zone N   px of transparency gradient (default: 10% of image height)',
     '    --fill-blur N     blur sigma for fill colour (default: 80)',
-    '    --exp-k N         exponential steepness (default: 3)',
+    '    --exp-k N         exponential steepness (default: 1.5)',
     '',
     '  Examples:',
     '    node extend-wallpaper.js photo.png --target 1216x2640',
@@ -203,6 +207,7 @@ function parseArgv(argv) {
     if (a === '--help' || a === '-h')  { args.help = true; }
     else if (a === '--target')         { args.target     = argv[++i]; }
     else if (a === '--ratio')          { args.ratio      = parseFloat(argv[++i]); }
+    else if (a === '--position')       { args.position   = argv[++i]; }
     else if (a === '--modify-zone')    { args.modifyZone = parseInt(argv[++i], 10); }
     else if (a === '--fill-blur')      { args.fillBlur   = parseFloat(argv[++i]); }
     else if (a === '--exp-k')          { args.expK       = parseFloat(argv[++i]); }
@@ -225,6 +230,7 @@ async function main() {
   const opts = {};
   if (args.target)     opts.target     = args.target;
   if (args.ratio)      opts.ratio      = args.ratio;
+  if (args.position)   opts.position   = args.position;
   if (args.modifyZone != null) opts.modifyZone = args.modifyZone;
   if (args.fillBlur != null)   opts.fillBlur   = args.fillBlur;
   if (args.expK != null)       opts.expK       = args.expK;
