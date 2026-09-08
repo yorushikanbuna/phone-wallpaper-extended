@@ -45,10 +45,9 @@ node extend-wallpaper.js <input> [output] --target <WxH>
 |--------|---------|-------------|
 | `--target WxH` | *(required)* | Phone resolution |
 | `--ratio N` | — | Alt: aspect ratio |
-| `--position P` | `top` | Extension position: top, center, or bottom |
 | `--modify-zone N` | `height × 0.1` | Gradient zone px |
 | `--fill-blur N` | `80` | Fill colour blur sigma |
-| `--exp-k N` | `1.5` | S-curve steepness |
+| `--exp-k N` | `3` | S-curve steepness |
 
 **Examples**
 
@@ -131,10 +130,9 @@ node extend-wallpaper.js <输入> [输出] --target <宽x高>
 |------|--------|------|
 | `--target WxH` | *(必填)* | 手机分辨率 |
 | `--ratio N` | — | 或指定宽高比 |
-| `--position P` | `top` | 延展位置：top、center 或 bottom |
 | `--modify-zone N` | `高度 × 0.1` | 渐变区像素数 |
 | `--fill-blur N` | `80` | 填充色模糊强度 |
-| `--exp-k N` | `1.5` | S 曲线陡峭度 |
+| `--exp-k N` | `3` | S 曲线陡峭度 |
 
 **使用实例**
 
@@ -197,15 +195,7 @@ await extendImage('in.png', 'out.png', {
 
 ## Android App
 
-原生 Android 版本（Kotlin + Canvas）是当前的正式实现，可在手机上一键处理壁纸。
-
-支持三种延展模式：
-
-- **纯色渐变**：使用自动取色或自定义 HEX 颜色
-- **模糊延展**：模糊并拉伸图片边缘
-- **镜像延展**：反射图片边缘内容
-
-CLI 脚本仍保留用于生成对比图和回归测试，不作为 Android App 的正式实现。
+原生 Android 版本（Kotlin + Canvas），可在手机上一键处理壁纸。
 
 [![Build APK](https://github.com/yorushikanbuna/phone-wallpaper-extended/actions/workflows/build-apk.yml/badge.svg)](https://github.com/yorushikanbuna/phone-wallpaper-extended/actions/workflows/build-apk.yml)
 
