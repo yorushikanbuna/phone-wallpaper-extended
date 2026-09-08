@@ -65,6 +65,8 @@ class PreviewView @JvmOverloads constructor(
                 val totalH = imgH + gap + extH
                 val top = (vh - totalH) / 2f
                 val imgTop = top; val extTop = top + imgH + gap
+                val br = Color.red(fillColor2); val bgC = Color.green(fillColor2); val bb = Color.blue(fillColor2)
+                paint.color = fillColor2
                 // image
                 val dstRect = Rect(0, imgTop.roundToInt(), vw.roundToInt(), (imgTop + imgH).roundToInt())
                 canvas.drawBitmap(src, null, dstRect, paint)
@@ -75,7 +77,7 @@ class PreviewView @JvmOverloads constructor(
                 if (fadeH > 0) {
                     val y0 = imgTop + imgH - fadeH
                     paint.shader = LinearGradient(0f, y0, 0f, y0 + fadeH,
-                        intArrayOf(Color.argb(0, r, g, b), Color.argb(255, r, g, b)),
+                        intArrayOf(Color.argb(0, br, bgC, bb), Color.argb(255, br, bgC, bb)),
                         floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
                     canvas.drawRect(0f, y0, vw, y0 + fadeH, paint)
                     paint.shader = null
@@ -85,7 +87,7 @@ class PreviewView @JvmOverloads constructor(
                 val halfExt = extH / 2f
                 val totalH = halfExt + gap + imgH + gap + halfExt
                 val top = (vh - totalH) / 2f
-                val useSecond = fillColor2 != fillColor && !sameColor
+                val useSecond = !sameColor
                 val r2 = Color.red(fillColor2); val g2 = Color.green(fillColor2); val b2 = Color.blue(fillColor2)
                 // top ext bar
                 canvas.drawRect(0f, top, vw, top + halfExt, paint)

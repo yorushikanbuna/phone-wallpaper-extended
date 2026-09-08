@@ -11,8 +11,11 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.TextView
 import android.widget.Toast
 import kotlinx.coroutines.Job
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,7 +31,8 @@ class MainActivity : AppCompatActivity() {
     private var sourceBitmap: Bitmap? = null
     private var fillColor = Color.BLACK
     private var fillColor2 = Color.BLACK
-    private var customColor = Color.BLACK
+    private var customTopColor = Color.BLACK
+    private var customBottomColor = Color.BLACK
     private var customColorEnabled = false
     private var gradientPercent = 10
     private var generateJob: Job? = null
@@ -53,7 +57,10 @@ class MainActivity : AppCompatActivity() {
         binding.etPhoneWidth.addTextChangedListener(resolutionWatcher)
         binding.etPhoneHeight.addTextChangedListener(resolutionWatcher)
 
-        binding.cbSameColor.setOnCheckedChangeListener { _, _ -> updatePreviewColors() }
+        binding.cbSameColor.setOnCheckedChangeListener { _, _ ->
+            updateColorSwatch()
+            updatePreviewColors()
+        }
 
         binding.rgPosition.setOnCheckedChangeListener { _, id ->
             val pos = when (id) {
@@ -64,6 +71,7 @@ class MainActivity : AppCompatActivity() {
             binding.cbSameColor.visibility =
                 if (pos == "center") android.view.View.VISIBLE else android.view.View.GONE
             binding.previewView.setPosition(pos)
+            updateColorSwatch()
             updatePreviewColors()
         }
 
@@ -108,11 +116,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun updatePreviewColors() {
         val customActive = customColorEnabled
-        val top = if (customActive) customColor else fillColor
-        val same = customActive || binding.cbSameColor.isChecked
-        val bottom = if (same) top else fillColor2
+        val top = if (customActive) customTopColor else fillColor
+        val bottom = if (customActive) customBottomColor else fillColor2
+        val centerMode = binding.rgPosition.checkedRadioButtonId == R.id.rbCenter
+        val same = centerMode && binding.cbSameColor.isChecked
         binding.previewView.setFillColor(top)
-        binding.previewView.setFillColor2(bottom, same)
+        binding.previewView.setFillColor2(if (same) top else bottom, same)
     }
 
     private fun updatePreviewRatio() {
@@ -156,7 +165,7 @@ class MainActivity : AppCompatActivity() {
         val pos = when (binding.rgPosition.checkedRadioButtonId) {
             R.id.rbCenter -> "center"; R.id.rbBottom -> "bottom"; else -> "top"
         }
-        val sameColor = binding.cbSameColor.isChecked || customActive
+        val sameColor = pos == "center" && binding.cbSameColor.isChecked
 
         binding.btnGenerate.isEnabled = false
         binding.btnGenerate.alpha = 0.5f
@@ -168,8 +177,8 @@ class MainActivity : AppCompatActivity() {
                 val topBase = sampleEdgeColor(bmp, fromTop = pos != "bottom")
                 val botBase = sampleEdgeColor(bmp, fromTop = false)
 
-                val topC = if (customActive) customColor else topBase
-                val botC = if (customActive) customColor else botBase
+                val topC = if (customActive) customTopColor else topBase
+                val botC = if (customActive) customBottomColor else botBase
                 val fc2 = if (sameColor) topC else botC
 
                 val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, topC, fc2)
@@ -219,20 +228,56 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showColorDialog() {
-        val input = EditText(this).apply {
-            hint = "#RRGGBB"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
-            filters = arrayOf(InputFilter.LengthFilter(7))
-            setSingleLine(true)
-            val initialColor = if (customColorEnabled) customColor else fillColor
-            setText(String.format("#%06X", initialColor and 0x00FFFFFF))
-            selectAll()
+        val density = resources.displayMetrics.density
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
         }
 
+        fun addColorInput(label: String, color: Int): EditText {
+            val labelView = TextView(this).apply {
+                text = label
+                textSize = 12f
+                setTextColor(resources.getColor(R.color.text_muted, theme))
+            }
+            container.addView(labelView, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                if (container.childCount > 0) topMargin = (8 * density).roundToInt()
+            })
+
+            val input = EditText(this).apply {
+                hint = "#RRGGBB"
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                filters = arrayOf(InputFilter.LengthFilter(7))
+                setSingleLine(true)
+                minHeight = (44 * density).roundToInt()
+                setPadding(
+                    (12 * density).roundToInt(), 0,
+                    (12 * density).roundToInt(), 0
+                )
+                setBackgroundResource(R.drawable.input_field_bg)
+                setText(String.format("#%06X", color and 0x00FFFFFF))
+                selectAll()
+            }
+            container.addView(input, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = (4 * density).roundToInt()
+            })
+            return input
+        }
+
+        val topColor = if (customColorEnabled) customTopColor else fillColor
+        val bottomColor = if (customColorEnabled) customBottomColor else fillColor2
+        val topInput = addColorInput("上方填充色", topColor)
+        val bottomInput = addColorInput("下方填充色", bottomColor)
+
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("选择填充色")
-            .setMessage("输入 HEX 颜色，例如 #F2E8FF")
-            .setView(input)
+            .setTitle("设置上下填充色")
+            .setMessage("勾选“上下同色”时只使用上方颜色；取消勾选后会分别使用两种颜色。")
+            .setView(container)
             .setNegativeButton("取消", null)
             .setNeutralButton("自动取色", null)
             .setPositiveButton("使用颜色", null)
@@ -246,12 +291,18 @@ class MainActivity : AppCompatActivity() {
                 dialog.dismiss()
             }
             dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
-                val color = parseHexColor(input.text.toString())
-                if (color == null) {
-                    input.error = "请输入 6 位 HEX 颜色"
+                val top = parseHexColor(topInput.text.toString())
+                if (top == null) {
+                    topInput.error = "请输入 6 位 HEX 颜色"
                     return@setOnClickListener
                 }
-                customColor = color
+                val bottom = parseHexColor(bottomInput.text.toString())
+                if (bottom == null) {
+                    bottomInput.error = "请输入 6 位 HEX 颜色"
+                    return@setOnClickListener
+                }
+                customTopColor = top
+                customBottomColor = bottom
                 customColorEnabled = true
                 updateColorSwatch()
                 updatePreviewColors()
@@ -262,22 +313,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateColorSwatch() {
-        val color = if (customColorEnabled) customColor else fillColor
-        binding.vColorSwatch.background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
+        val top = if (customColorEnabled) customTopColor else fillColor
+        val bottom = if (customColorEnabled) customBottomColor else fillColor2
+        val centerSame = binding.rgPosition.checkedRadioButtonId == R.id.rbCenter &&
+            binding.cbSameColor.isChecked
+        val effectiveBottom = if (centerSame) top else bottom
+        binding.vColorSwatch.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(top, effectiveBottom)
+        ).apply {
             cornerRadius = 8f
-            setColor(color)
             setStroke(1, Color.LTGRAY)
         }
-        val autoLabel = if (fillColor == Color.BLACK) {
-            "自动取色"
-        } else {
-            "自动：${String.format("#%06X", fillColor and 0x00FFFFFF)}"
-        }
         binding.tvColorMode.text = if (customColorEnabled) {
-            "自定义：${String.format("#%06X", customColor and 0x00FFFFFF)}"
+            "自定义上下颜色"
         } else {
-            autoLabel
+            "自动取色（上下）"
         }
     }
 

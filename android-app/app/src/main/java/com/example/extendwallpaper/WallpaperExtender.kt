@@ -36,7 +36,8 @@ object WallpaperExtender {
 
         // 2. Fill background (two-colour for center mode when colors differ)
         val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
-        bg.eraseColor(fillColor)
+        val baseFill = if (position == "bottom") fillColor2 else fillColor
+        bg.eraseColor(baseFill)
         if (position == "center" && !sameColor) {
             val botPaint = Paint(); botPaint.color = fillColor2
             val splitY = topOffset + h / 2
@@ -72,7 +73,7 @@ object WallpaperExtender {
                 row.recycle()
             }
         }
-        return Result(bg, fillColor, ext)
+        return Result(bg, baseFill, ext)
     }
 
     private fun alphaAt(dist: Int, range: Int, denom: Double): Int {

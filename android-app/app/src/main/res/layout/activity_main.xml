@@ -207,9 +207,10 @@
                     android:textSize="12sp"
                     android:textColor="@color/text_muted"
                     android:layout_marginTop="4dp"
+                    android:checked="true"
                     android:visibility="gone" />
 
-                <!-- One action keeps automatic sampling and manual colour in the same place. -->
+                <!-- One selector keeps automatic sampling and manual top/bottom colours together. -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
