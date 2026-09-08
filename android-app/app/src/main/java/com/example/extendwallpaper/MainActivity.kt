@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.text.Editable
+import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
 import android.widget.EditText
@@ -221,7 +222,7 @@ class MainActivity : AppCompatActivity() {
         val input = EditText(this).apply {
             hint = "#RRGGBB"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
-            maxLength = 7
+            filters = arrayOf(InputFilter.LengthFilter(7))
             setSingleLine(true)
             val initialColor = if (customColorEnabled) customColor else fillColor
             setText(String.format("#%06X", initialColor and 0x00FFFFFF))
