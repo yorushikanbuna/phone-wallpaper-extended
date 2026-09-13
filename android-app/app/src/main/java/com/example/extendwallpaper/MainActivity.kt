@@ -257,9 +257,10 @@ class MainActivity : AppCompatActivity() {
 
         generateJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Compute fill colours from FULL-RES bitmap — blur+median of image edges
-                val topBase = sampleEdgeColor(bmp, fromTop = pos != "bottom", mask = detectedMask)
-                val botBase = sampleEdgeColor(bmp, fromTop = false, mask = detectedMask)
+                // Compute fill colours from the full-resolution edge rows.
+                // Keep the background pass identical to recognition-off mode.
+                val topBase = sampleEdgeColor(bmp, fromTop = pos != "bottom")
+                val botBase = sampleEdgeColor(bmp, fromTop = false)
 
                 val topC = if (customActive) customTopColor else topBase
                 val botC = if (customActive) customBottomColor else botBase
@@ -419,36 +420,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun medianColor(bmp: Bitmap): Int {
-        val n = bmp.width * bmp.height
-        val p = IntArray(n); bmp.getPixels(p, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-        val r = IntArray(n); val g = IntArray(n); val b = IntArray(n)
-        for (i in 0 until n) {
-            val c = p[i]; r[i] = c shr 16 and 0xFF; g[i] = c shr 8 and 0xFF; b[i] = c and 0xFF
-        }
-        r.sort(); g.sort(); b.sort()
-        val m = n / 2
-        return 0xFF shl 24 or (r[m] shl 16) or (g[m] shl 8) or b[m]
-    }
-
     // ── Fill-colour helpers (reusable across preview & generation) ──
 
-    /** Blur+median of [height] rows starting from the top or bottom edge. */
-    private fun sampleEdgeColor(bmp: Bitmap, fromTop: Boolean, height: Int = 15, mask: PersonMask? = null): Int {
+    /** Median colour of [height] rows starting from the top or bottom edge. */
+    private fun sampleEdgeColor(bmp: Bitmap, fromTop: Boolean, height: Int = 15): Int {
         val h = bmp.height; val w = bmp.width
         val startY = if (fromTop) 0 else (h - height).coerceAtLeast(0)
         val sh = minOf(height, h - startY)
         if (sh <= 0) return Color.BLACK
         val values = ArrayList<Int>(w * sh)
-        for (y in 0 until sh) for (x in 0 until w) {
-            if (mask == null || mask.valueAt(x, startY + y, w, h) <= 128) values.add(bmp.getPixel(x, startY + y))
-        }
-        if (values.isEmpty()) {
-            val fallback = Bitmap.createBitmap(bmp, 0, startY, w, sh)
-            val color = medianColor(fallback)
-            fallback.recycle()
-            return color
-        }
+        for (y in 0 until sh) for (x in 0 until w) values.add(bmp.getPixel(x, startY + y))
         val r = IntArray(values.size); val g = IntArray(values.size); val b = IntArray(values.size)
         values.forEachIndexed { i, c -> r[i] = Color.red(c); g[i] = Color.green(c); b[i] = Color.blue(c) }
         r.sort(); g.sort(); b.sort(); val m = values.size / 2

@@ -7,14 +7,9 @@ import kotlin.math.roundToInt
 
 object WallpaperExtender {
     private const val EXP_K = 1.5
-    /** Keeps the person layer crisp without forcing the entire source row opaque. */
-    private const val BACKDROP_MAX_DIM = 1024
-    private const val BACKDROP_BLUR_RADIUS = 40f
-    /** Feathers a foreground that touches the source edge to hide the horizontal seam. */
-    private const val FOREGROUND_RAMP_END = 0.75f
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
-    /** Extends [source]; recognition mode uses a blurred backdrop plus the original foreground. */
+    /** Extends [source] with the normal background pass and an optional person foreground pass. */
     fun extend(
         source: Bitmap, phoneW: Int, phoneH: Int, modifyZone: Int = -1,
         position: String = "top", sameColor: Boolean = false,
@@ -48,11 +43,7 @@ object WallpaperExtender {
         }
         val sourcePixels = IntArray(w * h)
         source.getPixels(sourcePixels, 0, w, 0, 0, w, h)
-        // Recognition mode uses a blurred backdrop and then overlays the original
-        // foreground from the soft person mask. Keep the backdrop bounded to avoid
-        // allocating another full-resolution bitmap for large camera images.
         val mask = personMask
-        val backdrop = mask?.let { createBackdrop(source) }
         val denom = 1.0 - exp(-EXP_K)
         for (y in 0 until h) {
             val gradient = when (position) {
@@ -66,34 +57,18 @@ object WallpaperExtender {
             }
             val outputY = topOffset + y
             if (outputY !in 0 until targetH) continue
-            val foregroundRamp = if (backdrop == null) 1f else {
-                smoothStep(gradient / (255f * FOREGROUND_RAMP_END))
+            val foregroundFeather = if (mask == null) 1f else {
+                foregroundEdgeFactor(y, h, position, zone, halfZone)
             }
             for (x in 0 until w) {
                 val sourceIndex = y * w + x
                 val sourceColor = sourcePixels[sourceIndex]
                 val dstIndex = outputY * w + x
-                var composed = output[dstIndex]
-
-                if (backdrop == null) {
-                    // Keep the original, lightweight compositor when recognition
-                    // is disabled. This preserves the lite APK behaviour exactly.
-                    composed = composite(composed, sourceColor, gradient)
-                } else {
-                    // Fade a low-frequency version of the whole image into the
-                    // extension fill. It sharpens back to the source by the end
-                    // of the fade, so there is no second seam at the zone boundary.
-                    val backdropColor = if (gradient < 255) {
-                        val blurred = backdrop.colorAt(x, y, w, h)
-                        mixColor(blurred, sourceColor, smoothStep(gradient / 255f))
-                    } else {
-                        sourceColor
-                    }
-                    composed = composite(composed, backdropColor, gradient)
-
-                    // Finally restore the original person layer. The mask remains
-                    // soft at hair edges, while the background keeps its gradient.
-                    val protect = ((mask?.valueAt(x, y, w, h) ?: 0) * foregroundRamp).roundToInt()
+                // Pass 1: the exact same background compositing used when recognition is off.
+                var composed = composite(output[dstIndex], sourceColor, gradient)
+                if (mask != null) {
+                    // Pass 2: add only the original pixels selected by the soft person mask.
+                    val protect = (mask.valueAt(x, y, w, h) * foregroundFeather).roundToInt()
                     composed = composite(composed, sourceColor, protect)
                 }
                 output[dstIndex] = composed
@@ -102,53 +77,25 @@ object WallpaperExtender {
         return Result(Bitmap.createBitmap(output, w, targetH, Bitmap.Config.ARGB_8888), baseTop, ext)
     }
 
-    private data class Backdrop(val width: Int, val height: Int, val pixels: IntArray) {
-        fun colorAt(x: Int, y: Int, targetWidth: Int, targetHeight: Int): Int {
-            val sx = ((x + 0.5f) * width / targetWidth).toInt().coerceIn(0, width - 1)
-            val sy = ((y + 0.5f) * height / targetHeight).toInt().coerceIn(0, height - 1)
-            return pixels[sy * width + sx]
-        }
-    }
-
-    private fun createBackdrop(source: Bitmap): Backdrop {
-        val sourceW = source.width
-        val sourceH = source.height
-        val scale = minOf(1f, BACKDROP_MAX_DIM.toFloat() / maxOf(sourceW, sourceH).toFloat())
-        val blurW = (sourceW * scale).roundToInt().coerceAtLeast(1)
-        val blurH = (sourceH * scale).roundToInt().coerceAtLeast(1)
-        val scaled = if (blurW == sourceW && blurH == sourceH) {
-            source
-        } else {
-            Bitmap.createScaledBitmap(source, blurW, blurH, true)
-        }
-        try {
-            val radius = (BACKDROP_BLUR_RADIUS * scale).roundToInt().coerceIn(8, 40)
-            val blurred = blur(scaled, radius.toFloat())
-            return try {
-                val pixels = IntArray(blurW * blurH)
-                blurred.getPixels(pixels, 0, blurW, 0, 0, blurW, blurH)
-                Backdrop(blurW, blurH, pixels)
-            } finally {
-                blurred.recycle()
+    /** Softens only the source-edge entry of the foreground layer to hide a seam. */
+    private fun foregroundEdgeFactor(y: Int, height: Int, position: String, zone: Int, halfZone: Int): Float {
+        val edgeRows = (if (position == "center") halfZone else zone)
+            .times(0.1f).roundToInt().coerceAtLeast(1)
+        val distance = when (position) {
+            "bottom" -> height - 1 - y
+            "center" -> when {
+                y < halfZone -> y
+                y >= height - halfZone -> height - 1 - y
+                else -> edgeRows
             }
-        } finally {
-            if (scaled !== source) scaled.recycle()
+            else -> y
         }
+        return smoothStep(distance.toFloat() / edgeRows)
     }
 
     private fun smoothStep(value: Float): Float {
         val t = value.coerceIn(0f, 1f)
         return t * t * (3f - 2f * t)
-    }
-
-    private fun mixColor(first: Int, second: Int, amount: Float): Int {
-        val t = amount.coerceIn(0f, 1f)
-        val inverse = 1f - t
-        val a = (Color.alpha(first) * inverse + Color.alpha(second) * t).roundToInt()
-        val r = (Color.red(first) * inverse + Color.red(second) * t).roundToInt()
-        val g = (Color.green(first) * inverse + Color.green(second) * t).roundToInt()
-        val b = (Color.blue(first) * inverse + Color.blue(second) * t).roundToInt()
-        return Color.argb(a, r, g, b)
     }
 
     private fun composite(background: Int, source: Int, alpha: Int): Int {
