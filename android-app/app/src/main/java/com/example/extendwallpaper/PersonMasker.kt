@@ -2,6 +2,9 @@ package com.example.extendwallpaper
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.ByteBufferExtractor
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -102,24 +105,35 @@ class PersonMasker(context: Context) {
     }
 
     private fun segmentAnime(bitmap: Bitmap, model: java.io.File): PersonMask {
-        val inputSize = 640
-        val scaled = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
-        val inputData = FloatArray(1 * 3 * inputSize * inputSize)
-        val pixels = IntArray(inputSize * inputSize)
-        scaled.getPixels(pixels, 0, inputSize, 0, 0, inputSize, inputSize)
-        val plane = inputSize * inputSize
-        for (i in pixels.indices) {
-            val c = pixels[i]
-            inputData[i] = ((c shr 16) and 0xff) / 255f
-            inputData[plane + i] = ((c shr 8) and 0xff) / 255f
-            inputData[plane * 2 + i] = (c and 0xff) / 255f
-        }
-        if (scaled !== bitmap) scaled.recycle()
-
         val env = OrtEnvironment.getEnvironment()
         val session = env.createSession(model.absolutePath, OrtSession.SessionOptions())
         try {
             val inputName = session.inputInfo.keys.first()
+            val inputInfo = session.inputInfo[inputName]?.info as? TensorInfo
+            val inputSize = inputInfo?.shape?.lastOrNull()?.toInt()?.takeIf { it > 0 } ?: 1024
+            val scale = minOf(inputSize.toFloat() / bitmap.width, inputSize.toFloat() / bitmap.height)
+            val scaledWidth = (bitmap.width * scale).roundToInt().coerceAtLeast(1)
+            val scaledHeight = (bitmap.height * scale).roundToInt().coerceAtLeast(1)
+            val resized = Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
+            val padded = Bitmap.createBitmap(inputSize, inputSize, Bitmap.Config.ARGB_8888)
+            padded.eraseColor(Color.BLACK)
+            Canvas(padded).drawBitmap(
+                resized,
+                ((inputSize - scaledWidth) / 2f),
+                ((inputSize - scaledHeight) / 2f),
+                Paint(Paint.FILTER_BITMAP_FLAG)
+            )
+            val inputData = FloatArray(1 * 3 * inputSize * inputSize)
+            val pixels = IntArray(inputSize * inputSize)
+            padded.getPixels(pixels, 0, inputSize, 0, 0, inputSize, inputSize)
+            val plane = inputSize * inputSize
+            for (i in pixels.indices) {
+                val c = pixels[i]
+                inputData[i] = ((c shr 16) and 0xff) / 255f
+                inputData[plane + i] = ((c shr 8) and 0xff) / 255f
+                inputData[plane * 2 + i] = (c and 0xff) / 255f
+            }
+            resized.recycle(); padded.recycle()
             val tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(inputData), longArrayOf(1, 3, inputSize.toLong(), inputSize.toLong()))
             try {
                 val outputs = session.run(mapOf(inputName to tensor))
@@ -134,9 +148,13 @@ class PersonMasker(context: Context) {
                     val outW = shape?.getOrNull(shape.size - 1)?.toInt()?.takeIf { it > 0 } ?: sqrt(values.size.toDouble()).roundToInt()
                     val outH = shape?.getOrNull(shape.size - 2)?.toInt()?.takeIf { it > 0 } ?: outW
                     val alpha = ByteArray(bitmap.width * bitmap.height)
+                    val padX = (outW - (scaledWidth * outW / inputSize)).coerceAtLeast(0) / 2
+                    val padY = (outH - (scaledHeight * outH / inputSize)).coerceAtLeast(0) / 2
+                    val maskWidth = (scaledWidth * outW / inputSize).coerceAtLeast(1)
+                    val maskHeight = (scaledHeight * outH / inputSize).coerceAtLeast(1)
                     for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) {
-                        val sx = ((x + 0.5f) * outW / bitmap.width).toInt().coerceIn(0, outW - 1)
-                        val sy = ((y + 0.5f) * outH / bitmap.height).toInt().coerceIn(0, outH - 1)
+                        val sx = (padX + (x + 0.5f) * maskWidth / bitmap.width).toInt().coerceIn(0, outW - 1)
+                        val sy = (padY + (y + 0.5f) * maskHeight / bitmap.height).toInt().coerceIn(0, outH - 1)
                         val score = values[(sy * outW + sx).coerceIn(0, values.lastIndex)]
                         val normalized = ((score - 0.25f) / 0.5f).coerceIn(0f, 1f)
                         alpha[y * bitmap.width + x] = (normalized * normalized * (3f - 2f * normalized) * 255f).roundToInt().toByte()
