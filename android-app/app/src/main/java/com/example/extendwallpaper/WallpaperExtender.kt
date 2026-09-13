@@ -52,51 +52,47 @@ object WallpaperExtender {
         val mask = personMask
         val backdrop = mask?.let { createBackdrop(source) }
         val denom = 1.0 - exp(-EXP_K)
-        try {
-            for (y in 0 until h) {
-                val gradient = when (position) {
-                    "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
-                    "center" -> when {
-                        y < halfZone -> alphaAt(y, halfZone.coerceAtLeast(1), denom)
-                        y >= h - halfZone -> alphaAt(h - y, halfZone.coerceAtLeast(1), denom)
-                        else -> 255
-                    }
-                    else -> if (y < zone) alphaAt(y, zone, denom) else 255
+        for (y in 0 until h) {
+            val gradient = when (position) {
+                "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
+                "center" -> when {
+                    y < halfZone -> alphaAt(y, halfZone.coerceAtLeast(1), denom)
+                    y >= h - halfZone -> alphaAt(h - y, halfZone.coerceAtLeast(1), denom)
+                    else -> 255
                 }
-                val outputY = topOffset + y
-                if (outputY !in 0 until targetH) continue
-                for (x in 0 until w) {
-                    val sourceIndex = y * w + x
-                    val sourceColor = sourcePixels[sourceIndex]
-                    val dstIndex = outputY * w + x
-                    var composed = output[dstIndex]
-
-                    if (backdrop == null) {
-                        // Keep the original, lightweight compositor when recognition
-                        // is disabled. This preserves the lite APK behaviour exactly.
-                        composed = composite(composed, sourceColor, gradient)
-                    } else {
-                        // Fade a low-frequency version of the whole image into the
-                        // extension fill. It sharpens back to the source by the end
-                        // of the fade, so there is no second seam at the zone boundary.
-                        val backdropColor = if (gradient < 255) {
-                            val blurred = backdrop.colorAt(x, y, w, h)
-                            mixColor(blurred, sourceColor, smoothStep(gradient / 255f))
-                        } else {
-                            sourceColor
-                        }
-                        composed = composite(composed, backdropColor, gradient)
-
-                        // Finally restore the original person layer. The mask remains
-                        // soft at hair edges, while the background keeps its gradient.
-                        val protect = mask?.valueAt(x, y, w, h) ?: 0
-                        composed = composite(composed, sourceColor, protect)
-                    }
-                    output[dstIndex] = composed
-                }
+                else -> if (y < zone) alphaAt(y, zone, denom) else 255
             }
-        } finally {
-            backdrop?.recycle()
+            val outputY = topOffset + y
+            if (outputY !in 0 until targetH) continue
+            for (x in 0 until w) {
+                val sourceIndex = y * w + x
+                val sourceColor = sourcePixels[sourceIndex]
+                val dstIndex = outputY * w + x
+                var composed = output[dstIndex]
+
+                if (backdrop == null) {
+                    // Keep the original, lightweight compositor when recognition
+                    // is disabled. This preserves the lite APK behaviour exactly.
+                    composed = composite(composed, sourceColor, gradient)
+                } else {
+                    // Fade a low-frequency version of the whole image into the
+                    // extension fill. It sharpens back to the source by the end
+                    // of the fade, so there is no second seam at the zone boundary.
+                    val backdropColor = if (gradient < 255) {
+                        val blurred = backdrop.colorAt(x, y, w, h)
+                        mixColor(blurred, sourceColor, smoothStep(gradient / 255f))
+                    } else {
+                        sourceColor
+                    }
+                    composed = composite(composed, backdropColor, gradient)
+
+                    // Finally restore the original person layer. The mask remains
+                    // soft at hair edges, while the background keeps its gradient.
+                    val protect = mask?.valueAt(x, y, w, h) ?: 0
+                    composed = composite(composed, sourceColor, protect)
+                }
+                output[dstIndex] = composed
+            }
         }
         return Result(Bitmap.createBitmap(output, w, targetH, Bitmap.Config.ARGB_8888), baseTop, ext)
     }
@@ -107,8 +103,6 @@ object WallpaperExtender {
             val sy = ((y + 0.5f) * height / targetHeight).toInt().coerceIn(0, height - 1)
             return pixels[sy * width + sx]
         }
-
-        fun recycle() = pixels.fill(0)
     }
 
     private fun createBackdrop(source: Bitmap): Backdrop {
@@ -122,13 +116,19 @@ object WallpaperExtender {
         } else {
             Bitmap.createScaledBitmap(source, blurW, blurH, true)
         }
-        val radius = (BACKDROP_BLUR_RADIUS * scale).roundToInt().coerceIn(8, 40)
-        val blurred = blur(scaled, radius.toFloat())
-        val pixels = IntArray(blurW * blurH)
-        blurred.getPixels(pixels, 0, blurW, 0, 0, blurW, blurH)
-        blurred.recycle()
-        if (scaled !== source) scaled.recycle()
-        return Backdrop(blurW, blurH, pixels)
+        try {
+            val radius = (BACKDROP_BLUR_RADIUS * scale).roundToInt().coerceIn(8, 40)
+            val blurred = blur(scaled, radius.toFloat())
+            return try {
+                val pixels = IntArray(blurW * blurH)
+                blurred.getPixels(pixels, 0, blurW, 0, 0, blurW, blurH)
+                Backdrop(blurW, blurH, pixels)
+            } finally {
+                blurred.recycle()
+            }
+        } finally {
+            if (scaled !== source) scaled.recycle()
+        }
     }
 
     private fun smoothStep(value: Float): Float {
