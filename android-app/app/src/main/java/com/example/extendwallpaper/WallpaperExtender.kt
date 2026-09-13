@@ -10,6 +10,8 @@ object WallpaperExtender {
     /** Keeps the person layer crisp without forcing the entire source row opaque. */
     private const val BACKDROP_MAX_DIM = 1024
     private const val BACKDROP_BLUR_RADIUS = 40f
+    /** Feathers a foreground that touches the source edge to hide the horizontal seam. */
+    private const val FOREGROUND_RAMP_END = 0.75f
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
     /** Extends [source]; recognition mode uses a blurred backdrop plus the original foreground. */
@@ -64,6 +66,9 @@ object WallpaperExtender {
             }
             val outputY = topOffset + y
             if (outputY !in 0 until targetH) continue
+            val foregroundRamp = if (backdrop == null) 1f else {
+                smoothStep(gradient / (255f * FOREGROUND_RAMP_END))
+            }
             for (x in 0 until w) {
                 val sourceIndex = y * w + x
                 val sourceColor = sourcePixels[sourceIndex]
@@ -88,7 +93,7 @@ object WallpaperExtender {
 
                     // Finally restore the original person layer. The mask remains
                     // soft at hair edges, while the background keeps its gradient.
-                    val protect = mask?.valueAt(x, y, w, h) ?: 0
+                    val protect = ((mask?.valueAt(x, y, w, h) ?: 0) * foregroundRamp).roundToInt()
                     composed = composite(composed, sourceColor, protect)
                 }
                 output[dstIndex] = composed
