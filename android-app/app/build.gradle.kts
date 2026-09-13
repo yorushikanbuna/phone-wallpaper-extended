@@ -71,6 +71,6 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.8.0")
     implementation("androidx.cardview:cardview:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    personImplementation("com.google.mediapipe:tasks-vision:0.10.28")
-    personImplementation("com.microsoft.onnxruntime:onnxruntime-android:1.24.2")
+    add("personImplementation", "com.google.mediapipe:tasks-vision:0.10.28")
+    add("personImplementation", "com.microsoft.onnxruntime:onnxruntime-android:1.24.2")
 }
