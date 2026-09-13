@@ -125,7 +125,7 @@ class PersonMasker(context: Context) {
                 val outputs = session.run(mapOf(inputName to tensor))
                 try {
                     val outputName = session.outputInfo.keys.first()
-                    val output = outputs[outputName].value
+                    val output = outputs[outputName].getValue()
                     val values = ArrayList<Float>()
                     flatten(output, values)
                     if (values.isEmpty()) throw IllegalStateException("二次元分割没有返回蒙版")
