@@ -20,6 +20,7 @@ import android.widget.Toast
 import kotlinx.coroutines.Job
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.extendwallpaper.databinding.ActivityMainBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
@@ -36,6 +37,11 @@ class MainActivity : AppCompatActivity() {
     private var customColorEnabled = false
     private var gradientPercent = 10
     private var generateJob: Job? = null
+    private var maskJob: Job? = null
+    private var maskRequestId = 0
+    private var protectionMode = ProtectionMode.AUTO
+    private var personMask: PersonMask? = null
+    private val personMasker by lazy { PersonMasker(applicationContext) }
 
     private val pickImage = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -48,6 +54,16 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnPickImage.setOnClickListener { pickImage.launch("image/*") }
         binding.btnGenerate.setOnClickListener { generate() }
+
+        binding.rgProtection.setOnCheckedChangeListener { _, id ->
+            protectionMode = when (id) {
+                R.id.rbProtectionReal -> ProtectionMode.REAL
+                R.id.rbProtectionAnime -> ProtectionMode.ANIME
+                R.id.rbProtectionOff -> ProtectionMode.OFF
+                else -> ProtectionMode.AUTO
+            }
+            startMaskDetection()
+        }
 
         val resolutionWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -93,7 +109,13 @@ class MainActivity : AppCompatActivity() {
     private fun onImagePicked(uri: Uri) {
         sourceUri = uri
         val bmp = loadBitmap(uri, sample = true) ?: return
+        maskJob?.cancel()
+        maskRequestId++
+        val previous = sourceBitmap
         sourceBitmap = bmp
+        personMask = null
+        binding.previewView.setPersonMask(null)
+        previous?.takeIf { it !== bmp }?.recycle()
         binding.tvImageInfo.text = "已选择: ${bmp.width} × ${bmp.height}"
         binding.btnGenerate.isEnabled = true
 
@@ -110,6 +132,59 @@ class MainActivity : AppCompatActivity() {
                 fillColor2 = botC
                 updateColorSwatch()
                 updatePreviewColors()
+            }
+        }
+        startMaskDetection()
+    }
+
+    private fun startMaskDetection() {
+        maskJob?.cancel()
+        val requestId = ++maskRequestId
+        val bmp = sourceBitmap
+        val mode = protectionMode
+        personMask = null
+        binding.previewView.setPersonMask(null)
+        if (bmp == null || mode == ProtectionMode.OFF) {
+            binding.pbProtection.visibility = android.view.View.GONE
+            binding.tvProtectionStatus.text = if (bmp == null) "选择图片后识别人物" else "人物保护已关闭"
+            binding.btnGenerate.isEnabled = bmp != null
+            return
+        }
+        binding.btnGenerate.isEnabled = false
+        binding.pbProtection.visibility = android.view.View.VISIBLE
+        binding.pbProtection.progress = 0
+        binding.tvProtectionStatus.text = "准备人物识别模型…"
+        maskJob = lifecycleScope.launch(Dispatchers.Default) {
+            try {
+                val mask = personMasker.detect(bmp, mode) { message ->
+                    runOnUiThread {
+                        if (requestId == maskRequestId) {
+                            binding.tvProtectionStatus.text = message
+                            Regex("(\\d+)%").find(message)?.groupValues?.get(1)?.toIntOrNull()?.let {
+                                binding.pbProtection.progress = it
+                            }
+                        }
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    if (requestId != maskRequestId) return@withContext
+                    personMask = mask
+                    binding.previewView.setPersonMask(mask)
+                    binding.pbProtection.visibility = android.view.View.GONE
+                    binding.tvProtectionStatus.text = "人物区域已保护（可继续调整参数）"
+                    binding.btnGenerate.isEnabled = true
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    if (requestId != maskRequestId) return@withContext
+                    personMask = null
+                    binding.previewView.setPersonMask(null)
+                    binding.pbProtection.visibility = android.view.View.GONE
+                    binding.tvProtectionStatus.text = "识别失败：${e.message ?: "请重试或关闭保护"}"
+                    binding.btnGenerate.isEnabled = true
+                }
             }
         }
     }
@@ -153,6 +228,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun generate() {
         val customActive = customColorEnabled
+        if (protectionMode != ProtectionMode.OFF && personMask == null) {
+            Toast.makeText(this, "人物识别尚未完成，请等待或关闭人物保护", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val detectedMask = personMask
 
         // Reload at full resolution for output quality
         val bmp = sourceUri?.let { loadBitmap(it, sample = false) } ?: sourceBitmap ?: return
@@ -174,16 +254,19 @@ class MainActivity : AppCompatActivity() {
         generateJob = CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Compute fill colours from FULL-RES bitmap — blur+median of image edges
-                val topBase = sampleEdgeColor(bmp, fromTop = pos != "bottom")
-                val botBase = sampleEdgeColor(bmp, fromTop = false)
+                val topBase = sampleEdgeColor(bmp, fromTop = pos != "bottom", mask = detectedMask)
+                val botBase = sampleEdgeColor(bmp, fromTop = false, mask = detectedMask)
 
                 val topC = if (customActive) customTopColor else topBase
                 val botC = if (customActive) customBottomColor else botBase
                 val fc2 = if (sameColor) topC else botC
 
-                val result = WallpaperExtender.extend(bmp, pw, ph, modifyPx, pos, sameColor, topC, fc2)
+                val result = WallpaperExtender.extend(
+                    bmp, pw, ph, modifyPx, pos, sameColor, topC, fc2, detectedMask
+                )
                 withContext(Dispatchers.Main) {
                     saveToGallery(result.bitmap)
+                    if (result.bitmap !== bmp) result.bitmap.recycle()
                     if (bmp != sourceBitmap) bmp.recycle()
                     binding.tvResult.text =
                         "${bmp.width}×${bmp.height} → ${bmp.width}×${bmp.height + result.extendPx}  (+${result.extendPx}px)"
@@ -347,15 +430,25 @@ class MainActivity : AppCompatActivity() {
     // ── Fill-colour helpers (reusable across preview & generation) ──
 
     /** Blur+median of [height] rows starting from the top or bottom edge. */
-    private fun sampleEdgeColor(bmp: Bitmap, fromTop: Boolean, height: Int = 15): Int {
+    private fun sampleEdgeColor(bmp: Bitmap, fromTop: Boolean, height: Int = 15, mask: PersonMask? = null): Int {
         val h = bmp.height; val w = bmp.width
         val startY = if (fromTop) 0 else (h - height).coerceAtLeast(0)
         val sh = minOf(height, h - startY)
         if (sh <= 0) return Color.BLACK
-        val strip = Bitmap.createBitmap(bmp, 0, startY, w, sh)
-        val small = Bitmap.createScaledBitmap(strip, (w * 0.05f).toInt().coerceAtLeast(1),
-            (sh * 0.05f).toInt().coerceAtLeast(1), true)
-        val c = medianColor(small); strip.recycle(); small.recycle(); return c
+        val values = ArrayList<Int>(w * sh)
+        for (y in 0 until sh) for (x in 0 until w) {
+            if (mask == null || mask.valueAt(x, startY + y, w, h) <= 128) values.add(bmp.getPixel(x, startY + y))
+        }
+        if (values.isEmpty()) {
+            val fallback = Bitmap.createBitmap(bmp, 0, startY, w, sh)
+            val color = medianColor(fallback)
+            fallback.recycle()
+            return color
+        }
+        val r = IntArray(values.size); val g = IntArray(values.size); val b = IntArray(values.size)
+        values.forEachIndexed { i, c -> r[i] = Color.red(c); g[i] = Color.green(c); b[i] = Color.blue(c) }
+        r.sort(); g.sort(); b.sort(); val m = values.size / 2
+        return Color.rgb(r[m], g[m], b[m])
     }
 
     override fun onDestroy() {

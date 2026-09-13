@@ -1,210 +1,36 @@
-# phone-wallpaper-extended
+# 壁纸延展（Android）
 
-> [English](#english) | [中文](#中文)
+通过透明度渐变把原图延展到更高的手机屏幕比例，不裁切原图。Android 应用支持上方、居中、下方延展，以及人物保护：渐变进入人物区域时，人物保持清晰，背景继续平滑过渡到填充色。
 
-Extend image height with a seamless transparency-gradient transition — adapt wallpapers to taller phone screens **without cropping**.
+## 使用
 
-通过透明度渐变无缝过渡来扩展图片高度——**不裁切**原图，将壁纸适配到更长的手机屏幕。
+1. 从 GitHub Releases 下载 APK 并安装。
+2. 选择图片，填写目标手机分辨率。
+3. 在“人物保护”中选择“自动”“真人”“二次元”或“关闭”。
+4. 等待首次模型下载和识别完成，再生成壁纸。
 
----
+“自动”会依次运行真人和二次元分割模型，以尽量保住人物轮廓；选择“真人”或“二次元”可以减少处理时间。模型只在首次使用时下载，下载后保存在应用私有目录，图片处理在本机完成，不会上传图片。下载支持进度、取消和重试，并会校验 SHA-256。
 
-## English
+## 构建
 
-### How it works
+用 Android Studio 打开 `android-app/`，或在 GitHub Actions 中运行 **Build & Release APK** 工作流。工作流会使用 JDK 17 和 Gradle 8.10.2 构建 release APK，并上传 APK artifact；推送到 `main` 时同时创建 GitHub Release。
 
-```
-┌──────────────────────────┐
-│   solid fill background  │  ← pure colour from blurred image top
-│   (extension + original) │
-├──────────────────────────┤
-│   original image with    │  ← S-curve alpha: slow start, fast finish
-│   transparency gradient  │
-│   (top ~10% of height)   │
-├──────────────────────────┤
-│   fully opaque original  │  ← untouched below gradient zone
-└──────────────────────────┘
-```
-
-### Quick Start
-
-```bash
-git clone https://github.com/yorushikanbuna/phone-wallpaper-extended.git
-cd phone-wallpaper-extended
-npm install
+```text
+android-app/
+└── app/src/main/java/com/example/extendwallpaper/
+    ├── MainActivity.kt       # 页面、下载状态和导出
+    ├── PersonMasker.kt       # 真人/二次元分割与蒙版
+    ├── ModelRepository.kt    # 模型下载、缓存和校验
+    └── WallpaperExtender.kt  # 预览与导出共用的像素合成
 ```
 
-Requires **Node.js ≥ 18**.
+## 模型
 
-### CLI
+- 真人：Google MediaPipe Selfie Multiclass Segmentation（Apache 2.0），约 16 MB。
+- 二次元：SkyTNT Anime Segmentation `isnetis.onnx`（Apache 2.0），约 176 MB。
 
-```bash
-node extend-wallpaper.js <input> [output] --target <WxH>
-```
+模型来源、固定下载地址和校验值记录在 `ModelRepository.kt`。人物保护只保留原图中已有的人物，不会补画被边缘裁断的部分。
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--target WxH` | *(required)* | Phone resolution |
-| `--ratio N` | — | Alt: aspect ratio |
-| `--modify-zone N` | `height × 0.1` | Gradient zone px |
-| `--fill-blur N` | `80` | Fill colour blur sigma |
-| `--exp-k N` | `3` | S-curve steepness |
+## 许可证
 
-**Examples**
-
-```bash
-# 1440×2520 wallpaper → iPhone-style 1216×2640 display
-node extend-wallpaper.js photo.png --target 1216x2640
-# Output: 1440×3126 (+606px top, fill #1b1821)
-
-# Custom output name
-node extend-wallpaper.js art.png wallpaper.png --target 1080x2400
-
-# Batch: extend all PNGs in current folder
-for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
-
-# Tune for darker fill / smoother transition
-node extend-wallpaper.js photo.png --target 1216x2640 --exp-k 5 --modify-zone 300
-```
-
-### API
-
-```js
-const { extendImage } = require('./extend-wallpaper.js');
-
-// Basic — phone resolution string
-await extendImage('in.png', 'out.png', { target: '1216x2640' });
-
-// Advanced — full customisation
-await extendImage('in.png', 'out.png', {
-  target:     '1216x2640',
-  modifyZone: 300,   // px of transparency gradient
-  fillBlur:   100,   // blur sigma for fill colour
-  expK:       5,     // S-curve steepness
-});
-```
-
-### Tuning
-
-| Symptom | Fix |
-|---------|-----|
-| Gradient starts too fast | Increase `--exp-k` |
-| Gradient finishes too abruptly | Decrease `--exp-k` |
-| Gradient zone too short | Increase `--modify-zone` |
-| Fill colour too light | Increase `--fill-blur` |
-
----
-
-## 中文
-
-### 原理
-
-```
-┌──────────────────────────┐
-│   纯色填充背景             │  ← 取原图顶部模糊后颜色
-│   （延展区 + 原图区）      │
-├──────────────────────────┤
-│   带透明度渐变的原图       │  ← S 曲线 alpha：慢启动、快收尾
-│   （顶部约 10% 高度）      │
-├──────────────────────────┤
-│   完全不透明的原图         │  ← 渐变区以下未触碰
-└──────────────────────────┘
-```
-
-### 快速开始
-
-```bash
-git clone https://github.com/yorushikanbuna/phone-wallpaper-extended.git
-cd phone-wallpaper-extended
-npm install
-```
-
-需要 **Node.js ≥ 18**。
-
-### 命令行
-
-```bash
-node extend-wallpaper.js <输入> [输出] --target <宽x高>
-```
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--target WxH` | *(必填)* | 手机分辨率 |
-| `--ratio N` | — | 或指定宽高比 |
-| `--modify-zone N` | `高度 × 0.1` | 渐变区像素数 |
-| `--fill-blur N` | `80` | 填充色模糊强度 |
-| `--exp-k N` | `3` | S 曲线陡峭度 |
-
-**使用实例**
-
-```bash
-# 1440×2520 壁纸 → 适配 1216×2640 手机
-node extend-wallpaper.js photo.png --target 1216x2640
-# 输出：1440×3126（顶部扩展 606px，填充色 #1b1821）
-
-# 指定输出文件名
-node extend-wallpaper.js art.png wallpaper.png --target 1080x2400
-
-# 批量处理当前文件夹所有 PNG
-for f in *.png; do node extend-wallpaper.js "$f" --target 1216x2640; done
-
-# 调参：更深填充色 + 更平滑过渡
-node extend-wallpaper.js photo.png --target 1216x2640 --exp-k 5 --modify-zone 300
-```
-
-### API 调用
-
-```js
-const { extendImage } = require('./extend-wallpaper.js');
-
-// 基本用法 — 指定手机分辨率
-await extendImage('in.png', 'out.png', { target: '1216x2640' });
-
-// 高级用法 — 完整参数
-await extendImage('in.png', 'out.png', {
-  target:     '1216x2640',
-  modifyZone: 300,   // 透明度渐变像素数
-  fillBlur:   100,   // 填充色模糊强度
-  expK:       5,     // S 曲线陡峭度
-});
-```
-
-### 调参指南
-
-| 现象 | 解决 |
-|------|------|
-| 渐变启动太快 | 增大 `--exp-k` |
-| 渐变收尾太陡 | 减小 `--exp-k` |
-| 渐变区域太短 | 增大 `--modify-zone` |
-| 填充色偏亮 | 增大 `--fill-blur` |
-
----
-
-## Examples / 效果展示
-
-> Left: original — Right: extended ｜ 左：原图 · 右：延展后
-
-| 瑞希 | 绘名 |
-|------|------|
-| [![](images/瑞希-compare.png)](images/瑞希-compare.png) | [![](images/绘名-compare.png)](images/绘名-compare.png) |
-
-| 奏 | 真东 |
-|------|------|
-| [![](images/奏-compare.png)](images/奏-compare.png) | [![](images/真东-compare.png)](images/真东-compare.png) |
-
----
-
-## Android App
-
-原生 Android 版本（Kotlin + Canvas），可在手机上一键处理壁纸。
-
-[![Build APK](https://github.com/yorushikanbuna/phone-wallpaper-extended/actions/workflows/build-apk.yml/badge.svg)](https://github.com/yorushikanbuna/phone-wallpaper-extended/actions/workflows/build-apk.yml)
-
-**下载安装：** [Releases](https://github.com/yorushikanbuna/phone-wallpaper-extended/releases) → 下载最新 APK → 直接安装
-
-**自己编译：** 用 Android Studio 打开 `android-app/` 目录
-
----
-
-## License
-
-MIT
+应用代码使用 MIT License。第三方模型按各自许可证发布。

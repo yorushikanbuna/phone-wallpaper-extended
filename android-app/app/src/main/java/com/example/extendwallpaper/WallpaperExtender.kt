@@ -1,79 +1,83 @@
 package com.example.extendwallpaper
 
-import android.graphics.*
-import kotlin.math.*
+import android.graphics.Bitmap
+import android.graphics.Color
+import kotlin.math.exp
+import kotlin.math.roundToInt
 
 object WallpaperExtender {
     private const val EXP_K = 1.5
-
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
-    fun extend(source: Bitmap, phoneW: Int, phoneH: Int, modifyZone: Int = -1,
-               position: String = "top", sameColor: Boolean = false,
-               presetFill: Int = -1, presetFill2: Int = -1): Result {
+    /** Extends [source] and keeps detected foreground pixels opaque in the fade zone. */
+    fun extend(
+        source: Bitmap, phoneW: Int, phoneH: Int, modifyZone: Int = -1,
+        position: String = "top", sameColor: Boolean = false,
+        presetFill: Int = -1, presetFill2: Int = -1, personMask: PersonMask? = null,
+    ): Result {
         val w = source.width; val h = source.height
+        require(phoneW > 0 && phoneH > 0) { "phone resolution must be positive" }
         val targetH = (w / (phoneW.toFloat() / phoneH)).roundToInt()
         val ext = targetH - h
         if (ext <= 0) return Result(source, Color.TRANSPARENT, 0)
-
-        val zone = if (modifyZone > 0) modifyZone else (h * 0.1f).roundToInt()
+        val zone = if (modifyZone > 0) modifyZone.coerceAtMost(h) else (h * 0.1f).roundToInt().coerceAtLeast(1)
         val topOffset = when (position) { "bottom" -> 0; "center" -> ext / 2; else -> ext }
         val halfZone = zone / 2
-
         var fillColor = presetFill
         var fillColor2 = presetFill2
-
-        // Use preset colours from caller (MainActivity computes them)
-        // Fallback: blur+median on top 30px (legacy, when called without preset)
-        if (presetFill == -1) {
-            val sampleH = min(30, h)
+        if (fillColor == -1) {
+            val sampleH = minOf(30, h)
             val top = Bitmap.createBitmap(source, 0, 0, w, sampleH)
             val blurred = blur(top, 40f)
             fillColor = medianColor(blurred)
-            top.recycle(); blurred.recycle()
-            fillColor2 = fillColor
+            top.recycle(); blurred.recycle(); fillColor2 = fillColor
         }
+        if (fillColor2 == -1) fillColor2 = fillColor
 
-        // 2. Fill background (two-colour for center mode when colors differ)
-        val bg = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
-        val baseFill = if (position == "bottom") fillColor2 else fillColor
-        bg.eraseColor(baseFill)
+        val output = IntArray(w * targetH)
+        val baseTop = if (position == "bottom") fillColor2 else fillColor
+        java.util.Arrays.fill(output, baseTop)
         if (position == "center" && !sameColor) {
-            val botPaint = Paint(); botPaint.color = fillColor2
-            val splitY = topOffset + h / 2
-            Canvas(bg).drawRect(0f, splitY.toFloat(), w.toFloat(), targetH.toFloat(), botPaint)
+            val split = (topOffset + h / 2).coerceIn(0, targetH)
+            for (y in split until targetH) java.util.Arrays.fill(output, y * w, (y + 1) * w, fillColor2)
         }
-
-        // 3. Exponential alpha gradient
+        val sourcePixels = IntArray(w * h)
+        source.getPixels(sourcePixels, 0, w, 0, 0, w, h)
         val denom = 1.0 - exp(-EXP_K)
-        val pixels = IntArray(w * h)
-        source.getPixels(pixels, 0, w, 0, 0, w, h)
-        val canvas = Canvas(bg)
-        val paint = Paint()
-
         for (y in 0 until h) {
-            val alpha = when (position) {
+            val gradient = when (position) {
                 "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
                 "center" -> when {
-                    y < halfZone -> alphaAt(y, halfZone, denom)
-                    y >= h - halfZone -> alphaAt(h - y, halfZone, denom)
+                    y < halfZone -> alphaAt(y, halfZone.coerceAtLeast(1), denom)
+                    y >= h - halfZone -> alphaAt(h - y, halfZone.coerceAtLeast(1), denom)
                     else -> 255
                 }
                 else -> if (y < zone) alphaAt(y, zone, denom) else 255
             }
-            if (alpha <= 0) continue
-            if (alpha >= 255) {
-                val row = Bitmap.createBitmap(pixels, y * w, w, w, 1, Bitmap.Config.ARGB_8888)
-                canvas.drawBitmap(row, 0f, (topOffset + y).toFloat(), null)
-                row.recycle()
-            } else {
-                paint.alpha = alpha
-                val row = Bitmap.createBitmap(pixels, y * w, w, w, 1, Bitmap.Config.ARGB_8888)
-                canvas.drawBitmap(row, 0f, (topOffset + y).toFloat(), paint)
-                row.recycle()
+            val outputY = topOffset + y
+            if (outputY !in 0 until targetH) continue
+            for (x in 0 until w) {
+                val sourceColor = sourcePixels[y * w + x]
+                val protect = personMask?.valueAt(x, y, w, h) ?: 0
+                val effectiveAlpha = (gradient + ((255 - gradient) * protect / 255f)).roundToInt().coerceIn(0, 255)
+                val sourceAlpha = Color.alpha(sourceColor) * effectiveAlpha / 255
+                if (sourceAlpha <= 0) continue
+                val dstIndex = outputY * w + x
+                val background = output[dstIndex]
+                if (sourceAlpha >= 255) {
+                    output[dstIndex] = sourceColor or (0xff shl 24)
+                } else {
+                    val inverse = 255 - sourceAlpha
+                    val sr = Color.red(sourceColor); val sg = Color.green(sourceColor); val sb = Color.blue(sourceColor)
+                    val br = Color.red(background); val bg = Color.green(background); val bb = Color.blue(background)
+                    output[dstIndex] = (0xff shl 24) or
+                        (((sr * sourceAlpha + br * inverse) / 255) shl 16) or
+                        (((sg * sourceAlpha + bg * inverse) / 255) shl 8) or
+                        ((sb * sourceAlpha + bb * inverse) / 255)
+                }
             }
         }
-        return Result(bg, baseFill, ext)
+        return Result(Bitmap.createBitmap(output, w, targetH, Bitmap.Config.ARGB_8888), baseTop, ext)
     }
 
     private fun alphaAt(dist: Int, range: Int, denom: Double): Int {
@@ -82,48 +86,40 @@ object WallpaperExtender {
         return (255 * curve).roundToInt().coerceIn(0, 255)
     }
 
-    // ── Stacked box blur (approximates Gaussian, 3 passes) ──
     private fun blur(src: Bitmap, radius: Float): Bitmap {
-        val r = radius.roundToInt().coerceAtLeast(2)
-        val w = src.width; val h = src.height
-        val pixels = IntArray(w * h)
-        src.getPixels(pixels, 0, w, 0, 0, w, h)
-        boxBlur(pixels, w, h, r)
-        boxBlur(pixels, w, h, r)
-        boxBlur(pixels, w, h, r)
+        val r = radius.roundToInt().coerceAtLeast(2); val w = src.width; val h = src.height
+        val pixels = IntArray(w * h); src.getPixels(pixels, 0, w, 0, 0, w, h)
+        repeat(3) { boxBlur(pixels, w, h, r) }
         return Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
     }
 
     private fun boxBlur(pixels: IntArray, w: Int, h: Int, radius: Int) {
-        val tmp = pixels.copyOf()
-        val kernel = radius * 2 + 1
-        // Horizontal
+        val tmp = pixels.copyOf(); val kernel = radius * 2 + 1
         for (y in 0 until h) {
-            var sR=0; var sG=0; var sB=0; var c=0
+            var sr = 0; var sg = 0; var sb = 0; var count = 0
             for (x in 0 until w + radius) {
-                if (x < w) { val v=tmp[y*w+x]; sR+=v shr 16 and 0xFF; sG+=v shr 8 and 0xFF; sB+=v and 0xFF; c++ }
-                if (x >= kernel) { val v=tmp[y*w+(x-kernel)]; sR-=v shr 16 and 0xFF; sG-=v shr 8 and 0xFF; sB-=v and 0xFF; c-- }
-                if (x >= radius) { val cx=x-radius; pixels[y*w+cx]=0xFF shl 24 or ((sR/c) shl 16) or ((sG/c) shl 8) or (sB/c) }
+                if (x < w) { val c = tmp[y * w + x]; sr += c shr 16 and 0xff; sg += c shr 8 and 0xff; sb += c and 0xff; count++ }
+                if (x >= kernel) { val c = tmp[y * w + x - kernel]; sr -= c shr 16 and 0xff; sg -= c shr 8 and 0xff; sb -= c and 0xff; count-- }
+                if (x >= radius) { val xx = x - radius; pixels[y * w + xx] = (0xff shl 24) or ((sr / count) shl 16) or ((sg / count) shl 8) or (sb / count) }
             }
         }
         pixels.copyInto(tmp)
-        // Vertical
         for (x in 0 until w) {
-            var sR=0; var sG=0; var sB=0; var c=0
+            var sr = 0; var sg = 0; var sb = 0; var count = 0
             for (y in 0 until h + radius) {
-                if (y < h) { val v=tmp[y*w+x]; sR+=v shr 16 and 0xFF; sG+=v shr 8 and 0xFF; sB+=v and 0xFF; c++ }
-                if (y >= kernel) { val v=tmp[(y-kernel)*w+x]; sR-=v shr 16 and 0xFF; sG-=v shr 8 and 0xFF; sB-=v and 0xFF; c-- }
-                if (y >= radius) { val cy=y-radius; pixels[cy*w+x]=0xFF shl 24 or ((sR/c) shl 16) or ((sG/c) shl 8) or (sB/c) }
+                if (y < h) { val c = tmp[y * w + x]; sr += c shr 16 and 0xff; sg += c shr 8 and 0xff; sb += c and 0xff; count++ }
+                if (y >= kernel) { val c = tmp[(y - kernel) * w + x]; sr -= c shr 16 and 0xff; sg -= c shr 8 and 0xff; sb -= c and 0xff; count-- }
+                if (y >= radius) { val yy = y - radius; pixels[yy * w + x] = (0xff shl 24) or ((sr / count) shl 16) or ((sg / count) shl 8) or (sb / count) }
             }
         }
     }
 
-    private fun medianColor(bmp: Bitmap): Int {
-        val n = bmp.width * bmp.height
-        val p = IntArray(n); bmp.getPixels(p, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-        val r = IntArray(n); val g = IntArray(n); val b = IntArray(n)
-        for (i in 0 until n) { val c=p[i]; r[i]=c shr 16 and 0xFF; g[i]=c shr 8 and 0xFF; b[i]=c and 0xFF }
-        r.sort(); g.sort(); b.sort(); val m=n/2
-        return 0xFF shl 24 or (r[m] shl 16) or (g[m] shl 8) or b[m]
+    private fun medianColor(bitmap: Bitmap): Int {
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        val r = IntArray(pixels.size); val g = IntArray(pixels.size); val b = IntArray(pixels.size)
+        pixels.forEachIndexed { i, c -> r[i] = c shr 16 and 0xff; g[i] = c shr 8 and 0xff; b[i] = c and 0xff }
+        r.sort(); g.sort(); b.sort(); val m = pixels.size / 2
+        return (0xff shl 24) or (r[m] shl 16) or (g[m] shl 8) or b[m]
     }
 }
