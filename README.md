@@ -15,6 +15,8 @@
 
 用 Android Studio 打开 `android-app/`，或在 GitHub Actions 中运行 **Build & Release APK** 工作流。工作流会使用 JDK 17 和 Gradle 8.10.2 构建 release APK，并上传 APK artifact；推送到 `main` 时同时创建 GitHub Release。
 
+构建会按 `arm64-v8a`、`armeabi-v7a` 和 `x86_64` 输出独立 APK，不生成包含全部架构的通用 APK；手机通常选择 `arm64-v8a` 版本即可。
+
 ```text
 android-app/
 └── app/src/main/java/com/example/extendwallpaper/
