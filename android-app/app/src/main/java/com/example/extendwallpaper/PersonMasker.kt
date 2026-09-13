@@ -16,10 +16,12 @@ import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import java.io.FileInputStream
 import java.lang.reflect.Array
-import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.channels.FileChannel
-import kotlin.math.exp
+import kotlin.math.floor
+import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -34,6 +36,33 @@ data class PersonMask(val width: Int, val height: Int, val alpha: ByteArray) {
         val sx = ((x + 0.5f) * width / targetWidth).toInt().coerceIn(0, width - 1)
         val sy = ((y + 0.5f) * height / targetHeight).toInt().coerceIn(0, height - 1)
         return alpha[sy * width + sx].toInt() and 0xff
+    }
+
+    /** Resamples a mask with bilinear filtering before masks from different models are merged. */
+    fun resampleTo(targetWidth: Int, targetHeight: Int): PersonMask {
+        if (width == targetWidth && height == targetHeight) return this
+        if (targetWidth <= 0 || targetHeight <= 0) return PersonMask(1, 1, byteArrayOf(0))
+        val result = ByteArray(targetWidth * targetHeight)
+        for (y in 0 until targetHeight) {
+            val sy = (((y + 0.5f) * height / targetHeight) - 0.5f).coerceIn(0f, (height - 1).toFloat())
+            val y0 = floor(sy).toInt().coerceIn(0, height - 1)
+            val y1 = (y0 + 1).coerceAtMost(height - 1)
+            val fy = sy - y0
+            for (x in 0 until targetWidth) {
+                val sx = (((x + 0.5f) * width / targetWidth) - 0.5f).coerceIn(0f, (width - 1).toFloat())
+                val x0 = floor(sx).toInt().coerceIn(0, width - 1)
+                val x1 = (x0 + 1).coerceAtMost(width - 1)
+                val fx = sx - x0
+                val a00 = alpha[y0 * width + x0].toInt() and 0xff
+                val a10 = alpha[y0 * width + x1].toInt() and 0xff
+                val a01 = alpha[y1 * width + x0].toInt() and 0xff
+                val a11 = alpha[y1 * width + x1].toInt() and 0xff
+                val top = a00 + (a10 - a00) * fx
+                val bottom = a01 + (a11 - a01) * fx
+                result[y * targetWidth + x] = (top + (bottom - top) * fy).roundToInt().toByte()
+            }
+        }
+        return PersonMask(targetWidth, targetHeight, result)
     }
 
     fun union(other: PersonMask): PersonMask {
@@ -69,10 +98,12 @@ class PersonMasker(context: Context) {
         val real = if (mode == ProtectionMode.REAL || mode == ProtectionMode.AUTO) {
             onProgress("正在识别真人区域…")
             segmentReal(bitmap, repository.file(ModelRepository.Model.REAL))
+                .resampleTo(bitmap.width, bitmap.height)
         } else null
         val anime = if (mode == ProtectionMode.ANIME || mode == ProtectionMode.AUTO) {
             onProgress("正在识别二次元人物…")
             segmentAnime(bitmap, repository.file(ModelRepository.Model.ANIME))
+                .resampleTo(bitmap.width, bitmap.height)
         } else null
         return when {
             real != null && anime != null -> real.union(anime)
@@ -87,17 +118,31 @@ class PersonMasker(context: Context) {
             val options = ImageSegmenter.ImageSegmenterOptions.builder()
                 .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(mapped).build())
                 .setRunningMode(RunningMode.IMAGE)
-                .setOutputCategoryMask(true)
-                .setOutputConfidenceMasks(false)
+                // Keep the continuous foreground confidence. A category mask turns a
+                // one-pixel hair strand into a hard 0/1 value before it is resized.
+                .setOutputCategoryMask(false)
+                .setOutputConfidenceMasks(true)
                 .build()
             val segmenter = ImageSegmenter.createFromOptions(appContext, options)
             try {
                 val result = segmenter.segment(BitmapImageBuilder(bitmap).build())
-                val maskImage = result.categoryMask().orElseThrow { IllegalStateException("真人分割没有返回蒙版") }
-                val buffer = ByteBufferExtractor.extract(maskImage).apply { rewind() }
-                val alpha = ByteArray(maskImage.width * maskImage.height)
-                for (i in alpha.indices) alpha[i] = if ((buffer.get().toInt() and 0xff) > 0) 255.toByte() else 0
-                return PersonMask(maskImage.width, maskImage.height, soften(alpha, maskImage.width, maskImage.height))
+                val masks = result.confidenceMasks().orElseThrow { IllegalStateException("真人分割没有返回置信度蒙版") }
+                if (masks.isEmpty()) throw IllegalStateException("真人分割没有返回置信度蒙版")
+                val maskWidth = masks.first().width
+                val maskHeight = masks.first().height
+                val pixelCount = maskWidth * maskHeight
+                val background = FloatArray(pixelCount)
+                val buffer = ByteBufferExtractor.extract(masks.first())
+                    .order(ByteOrder.nativeOrder())
+                    .asFloatBuffer()
+                buffer.rewind()
+                buffer.get(background)
+                val alpha = ByteArray(pixelCount)
+                for (i in alpha.indices) {
+                    val foreground = (1f - background[i]).coerceIn(0f, 1f)
+                    alpha[i] = confidenceToAlpha(foreground, low = 0.02f, high = 0.45f)
+                }
+                return PersonMask(maskWidth, maskHeight, preserveFringe(alpha, maskWidth, maskHeight))
             } finally {
                 segmenter.close()
             }
@@ -156,10 +201,9 @@ class PersonMasker(context: Context) {
                         val sx = (padX + (x + 0.5f) * maskWidth / bitmap.width).toInt().coerceIn(0, outW - 1)
                         val sy = (padY + (y + 0.5f) * maskHeight / bitmap.height).toInt().coerceIn(0, outH - 1)
                         val score = values[(sy * outW + sx).coerceIn(0, values.lastIndex)]
-                        val normalized = ((score - 0.25f) / 0.5f).coerceIn(0f, 1f)
-                        alpha[y * bitmap.width + x] = (normalized * normalized * (3f - 2f * normalized) * 255f).roundToInt().toByte()
+                        alpha[y * bitmap.width + x] = confidenceToAlpha(score, low = 0.06f, high = 0.48f)
                     }
-                    return PersonMask(bitmap.width, bitmap.height, alpha)
+                    return PersonMask(bitmap.width, bitmap.height, preserveFringe(alpha, bitmap.width, bitmap.height))
                 } finally {
                     outputs.close()
                 }
@@ -185,18 +229,28 @@ class PersonMasker(context: Context) {
         }
     }
 
-    private fun soften(input: ByteArray, width: Int, height: Int): ByteArray {
+    /** Converts a model probability into a soft but conservative protection alpha. */
+    private fun confidenceToAlpha(score: Float, low: Float, high: Float): Byte {
+        val normalized = ((score - low) / (high - low)).coerceIn(0f, 1f)
+        val smooth = normalized * normalized * (3f - 2f * normalized)
+        return (smooth.pow(0.72f) * 255f).roundToInt().coerceIn(0, 255).toByte()
+    }
+
+    /** Adds a one-pixel, decaying fringe around confident foreground without blurring the core. */
+    private fun preserveFringe(input: ByteArray, width: Int, height: Int): ByteArray {
         val result = ByteArray(input.size)
+        input.copyInto(result)
         for (y in 0 until height) for (x in 0 until width) {
-            var sum = 0
-            var count = 0
+            var localMax = 0
             for (dy in -1..1) for (dx in -1..1) {
                 val xx = (x + dx).coerceIn(0, width - 1)
                 val yy = (y + dy).coerceIn(0, height - 1)
-                sum += input[yy * width + xx].toInt() and 0xff
-                count++
+                localMax = max(localMax, input[yy * width + xx].toInt() and 0xff)
             }
-            result[y * width + x] = (sum / count).toByte()
+            val current = input[y * width + x].toInt() and 0xff
+            if (localMax >= 180 && current < localMax) {
+                result[y * width + x] = max(current, (localMax * 0.58f).roundToInt()).toByte()
+            }
         }
         return result
     }
