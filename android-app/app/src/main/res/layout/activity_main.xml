@@ -201,6 +201,7 @@
 
                 <!-- Foreground protection mode -->
                 <LinearLayout
+                    android:id="@+id/personProtectionControls"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
@@ -221,17 +222,6 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:orientation="horizontal">
-
-                        <RadioButton
-                            android:id="@+id/rbProtectionAuto"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:buttonTint="@color/accent_primary"
-                            android:text="自动"
-                            android:textColor="@color/text_primary"
-                            android:textSize="12sp"
-                            android:checked="true" />
 
                         <RadioButton
                             android:id="@+id/rbProtectionReal"
@@ -261,11 +251,13 @@
                             android:buttonTint="@color/accent_primary"
                             android:text="关闭"
                             android:textColor="@color/text_primary"
-                            android:textSize="12sp" />
+                            android:textSize="12sp"
+                            android:checked="true" />
                     </RadioGroup>
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/personProtectionStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"

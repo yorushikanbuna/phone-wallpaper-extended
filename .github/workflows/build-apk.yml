@@ -36,17 +36,17 @@ jobs:
         with:
           gradle-version: 8.10.2
 
-      - name: Build release APK
+      - name: Build two release APKs
         working-directory: android-app
         env:
           VERSION_CODE: ${{ github.run_number }}
-        run: gradle assembleRelease
+        run: gradle assemblePersonRelease assembleLiteRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: wallpaper-extend-release
-          path: android-app/app/build/outputs/apk/release/*.apk
+          path: android-app/app/build/outputs/apk/**/*.apk
 
   release:
     needs: build

@@ -15,12 +15,29 @@ android {
         versionName = "1.${System.getenv("VERSION_CODE") ?: "0"}"
     }
 
-    buildFeatures { viewBinding = true }
+    flavorDimensions += "feature"
+    productFlavors {
+        create("person") {
+            dimension = "feature"
+            buildConfigField("boolean", "PERSON_DETECTION", "true")
+        }
+        create("lite") {
+            dimension = "feature"
+            applicationIdSuffix = ".lite"
+            versionNameSuffix = "-lite"
+            buildConfigField("boolean", "PERSON_DETECTION", "false")
+        }
+    }
+
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
+    }
     splits {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            include("arm64-v8a")
             isUniversalApk = false
         }
     }
@@ -54,6 +71,6 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.8.0")
     implementation("androidx.cardview:cardview:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("com.google.mediapipe:tasks-vision:0.10.28")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.24.2")
+    personImplementation("com.google.mediapipe:tasks-vision:0.10.28")
+    personImplementation("com.microsoft.onnxruntime:onnxruntime-android:1.24.2")
 }

@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
     private var generateJob: Job? = null
     private var maskJob: Job? = null
     private var maskRequestId = 0
-    private var protectionMode = ProtectionMode.AUTO
+    private var protectionMode = ProtectionMode.OFF
     private var personMask: PersonMask? = null
     private val personMasker by lazy { PersonMasker(applicationContext) }
 
@@ -52,6 +52,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        if (!BuildConfig.PERSON_DETECTION) {
+            binding.personProtectionControls.visibility = android.view.View.GONE
+            binding.personProtectionStatus.visibility = android.view.View.GONE
+        }
+
         binding.btnPickImage.setOnClickListener { pickImage.launch("image/*") }
         binding.btnGenerate.setOnClickListener { generate() }
 
@@ -59,8 +64,7 @@ class MainActivity : AppCompatActivity() {
             protectionMode = when (id) {
                 R.id.rbProtectionReal -> ProtectionMode.REAL
                 R.id.rbProtectionAnime -> ProtectionMode.ANIME
-                R.id.rbProtectionOff -> ProtectionMode.OFF
-                else -> ProtectionMode.AUTO
+                else -> ProtectionMode.OFF
             }
             startMaskDetection()
         }
