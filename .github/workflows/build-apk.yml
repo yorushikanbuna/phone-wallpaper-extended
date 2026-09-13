@@ -64,7 +64,9 @@ jobs:
         with:
           name: "v1.${{ github.run_number }}"
           tag_name: "v1.${{ github.run_number }}"
-          files: "*.apk"
+          files: |
+            lite/release/app-lite-arm64-v8a-release.apk
+            person/release/app-person-arm64-v8a-release.apk
           generate_release_notes: true
           draft: false
           prerelease: false
