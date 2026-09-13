@@ -7,9 +7,12 @@ import kotlin.math.roundToInt
 
 object WallpaperExtender {
     private const val EXP_K = 1.5
+    /** Keeps the person layer crisp without forcing the entire source row opaque. */
+    private const val BACKDROP_MAX_DIM = 1024
+    private const val BACKDROP_BLUR_RADIUS = 40f
     data class Result(val bitmap: Bitmap, val fillColor: Int, val extendPx: Int)
 
-    /** Extends [source] and keeps detected foreground pixels opaque in the fade zone. */
+    /** Extends [source]; recognition mode uses a blurred backdrop plus the original foreground. */
     fun extend(
         source: Bitmap, phoneW: Int, phoneH: Int, modifyZone: Int = -1,
         position: String = "top", sameColor: Boolean = false,
@@ -43,41 +46,117 @@ object WallpaperExtender {
         }
         val sourcePixels = IntArray(w * h)
         source.getPixels(sourcePixels, 0, w, 0, 0, w, h)
+        // Recognition mode uses a blurred backdrop and then overlays the original
+        // foreground from the soft person mask. Keep the backdrop bounded to avoid
+        // allocating another full-resolution bitmap for large camera images.
+        val mask = personMask
+        val backdrop = mask?.let { createBackdrop(source) }
         val denom = 1.0 - exp(-EXP_K)
-        for (y in 0 until h) {
-            val gradient = when (position) {
-                "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
-                "center" -> when {
-                    y < halfZone -> alphaAt(y, halfZone.coerceAtLeast(1), denom)
-                    y >= h - halfZone -> alphaAt(h - y, halfZone.coerceAtLeast(1), denom)
-                    else -> 255
+        try {
+            for (y in 0 until h) {
+                val gradient = when (position) {
+                    "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
+                    "center" -> when {
+                        y < halfZone -> alphaAt(y, halfZone.coerceAtLeast(1), denom)
+                        y >= h - halfZone -> alphaAt(h - y, halfZone.coerceAtLeast(1), denom)
+                        else -> 255
+                    }
+                    else -> if (y < zone) alphaAt(y, zone, denom) else 255
                 }
-                else -> if (y < zone) alphaAt(y, zone, denom) else 255
-            }
-            val outputY = topOffset + y
-            if (outputY !in 0 until targetH) continue
-            for (x in 0 until w) {
-                val sourceColor = sourcePixels[y * w + x]
-                val protect = personMask?.valueAt(x, y, w, h) ?: 0
-                val effectiveAlpha = (gradient + ((255 - gradient) * protect / 255f)).roundToInt().coerceIn(0, 255)
-                val sourceAlpha = Color.alpha(sourceColor) * effectiveAlpha / 255
-                if (sourceAlpha <= 0) continue
-                val dstIndex = outputY * w + x
-                val background = output[dstIndex]
-                if (sourceAlpha >= 255) {
-                    output[dstIndex] = sourceColor or (0xff shl 24)
-                } else {
-                    val inverse = 255 - sourceAlpha
-                    val sr = Color.red(sourceColor); val sg = Color.green(sourceColor); val sb = Color.blue(sourceColor)
-                    val br = Color.red(background); val bg = Color.green(background); val bb = Color.blue(background)
-                    output[dstIndex] = (0xff shl 24) or
-                        (((sr * sourceAlpha + br * inverse) / 255) shl 16) or
-                        (((sg * sourceAlpha + bg * inverse) / 255) shl 8) or
-                        ((sb * sourceAlpha + bb * inverse) / 255)
+                val outputY = topOffset + y
+                if (outputY !in 0 until targetH) continue
+                for (x in 0 until w) {
+                    val sourceIndex = y * w + x
+                    val sourceColor = sourcePixels[sourceIndex]
+                    val dstIndex = outputY * w + x
+                    var composed = output[dstIndex]
+
+                    if (backdrop == null) {
+                        // Keep the original, lightweight compositor when recognition
+                        // is disabled. This preserves the lite APK behaviour exactly.
+                        composed = composite(composed, sourceColor, gradient)
+                    } else {
+                        // Fade a low-frequency version of the whole image into the
+                        // extension fill. It sharpens back to the source by the end
+                        // of the fade, so there is no second seam at the zone boundary.
+                        val backdropColor = if (gradient < 255) {
+                            val blurred = backdrop.colorAt(x, y, w, h)
+                            mixColor(blurred, sourceColor, smoothStep(gradient / 255f))
+                        } else {
+                            sourceColor
+                        }
+                        composed = composite(composed, backdropColor, gradient)
+
+                        // Finally restore the original person layer. The mask remains
+                        // soft at hair edges, while the background keeps its gradient.
+                        val protect = mask?.valueAt(x, y, w, h) ?: 0
+                        composed = composite(composed, sourceColor, protect)
+                    }
+                    output[dstIndex] = composed
                 }
             }
+        } finally {
+            backdrop?.recycle()
         }
         return Result(Bitmap.createBitmap(output, w, targetH, Bitmap.Config.ARGB_8888), baseTop, ext)
+    }
+
+    private data class Backdrop(val width: Int, val height: Int, val pixels: IntArray) {
+        fun colorAt(x: Int, y: Int, targetWidth: Int, targetHeight: Int): Int {
+            val sx = ((x + 0.5f) * width / targetWidth).toInt().coerceIn(0, width - 1)
+            val sy = ((y + 0.5f) * height / targetHeight).toInt().coerceIn(0, height - 1)
+            return pixels[sy * width + sx]
+        }
+
+        fun recycle() = pixels.fill(0)
+    }
+
+    private fun createBackdrop(source: Bitmap): Backdrop {
+        val sourceW = source.width
+        val sourceH = source.height
+        val scale = minOf(1f, BACKDROP_MAX_DIM.toFloat() / maxOf(sourceW, sourceH).toFloat())
+        val blurW = (sourceW * scale).roundToInt().coerceAtLeast(1)
+        val blurH = (sourceH * scale).roundToInt().coerceAtLeast(1)
+        val scaled = if (blurW == sourceW && blurH == sourceH) {
+            source
+        } else {
+            Bitmap.createScaledBitmap(source, blurW, blurH, true)
+        }
+        val radius = (BACKDROP_BLUR_RADIUS * scale).roundToInt().coerceIn(8, 40)
+        val blurred = blur(scaled, radius.toFloat())
+        val pixels = IntArray(blurW * blurH)
+        blurred.getPixels(pixels, 0, blurW, 0, 0, blurW, blurH)
+        blurred.recycle()
+        if (scaled !== source) scaled.recycle()
+        return Backdrop(blurW, blurH, pixels)
+    }
+
+    private fun smoothStep(value: Float): Float {
+        val t = value.coerceIn(0f, 1f)
+        return t * t * (3f - 2f * t)
+    }
+
+    private fun mixColor(first: Int, second: Int, amount: Float): Int {
+        val t = amount.coerceIn(0f, 1f)
+        val inverse = 1f - t
+        val a = (Color.alpha(first) * inverse + Color.alpha(second) * t).roundToInt()
+        val r = (Color.red(first) * inverse + Color.red(second) * t).roundToInt()
+        val g = (Color.green(first) * inverse + Color.green(second) * t).roundToInt()
+        val b = (Color.blue(first) * inverse + Color.blue(second) * t).roundToInt()
+        return Color.argb(a, r, g, b)
+    }
+
+    private fun composite(background: Int, source: Int, alpha: Int): Int {
+        val sourceAlpha = (Color.alpha(source) * alpha / 255).coerceIn(0, 255)
+        if (sourceAlpha <= 0) return background
+        if (sourceAlpha >= 255) return source or (0xff shl 24)
+        val inverse = 255 - sourceAlpha
+        val sr = Color.red(source); val sg = Color.green(source); val sb = Color.blue(source)
+        val br = Color.red(background); val bg = Color.green(background); val bb = Color.blue(background)
+        return (0xff shl 24) or
+            (((sr * sourceAlpha + br * inverse) / 255) shl 16) or
+            (((sg * sourceAlpha + bg * inverse) / 255) shl 8) or
+            ((sb * sourceAlpha + bb * inverse) / 255)
     }
 
     private fun alphaAt(dist: Int, range: Int, denom: Double): Int {
