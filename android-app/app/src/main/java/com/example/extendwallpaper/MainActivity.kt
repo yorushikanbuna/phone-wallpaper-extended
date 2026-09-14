@@ -1,7 +1,10 @@
 package com.example.extendwallpaper
 
+import android.app.Dialog
 import android.content.ContentValues
+import android.content.res.ColorStateList
 import android.graphics.*
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
@@ -11,8 +14,14 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
+import android.view.Window
+import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
@@ -28,7 +37,20 @@ import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
 
+    private data class Resolution(val width: Int, val height: Int)
+
+    private companion object {
+        const val PREFERENCES_NAME = "wallpaper_settings"
+        const val LAST_WIDTH = "last_phone_width"
+        const val LAST_HEIGHT = "last_phone_height"
+        const val DEFAULT_PHONE_WIDTH = 1216
+        const val DEFAULT_PHONE_HEIGHT = 2640
+    }
+
     private lateinit var binding: ActivityMainBinding
+    private val preferences by lazy {
+        getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
+    }
     private var sourceBitmap: Bitmap? = null
     private var fillColor = Color.BLACK
     private var fillColor2 = Color.BLACK
@@ -53,11 +75,16 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         if (!BuildConfig.PERSON_DETECTION) {
-            binding.personProtectionControls.visibility = android.view.View.GONE
-            binding.personProtectionStatus.visibility = android.view.View.GONE
+            binding.personProtectionControls.visibility = View.GONE
+            binding.personProtectionStatus.visibility = View.GONE
         }
 
+        val initialResolution = loadInitialResolution()
+        binding.etPhoneWidth.setText(initialResolution.width.toString())
+        binding.etPhoneHeight.setText(initialResolution.height.toString())
+
         binding.btnPickImage.setOnClickListener { pickImage.launch("image/*") }
+        binding.previewView.setOnClickListener { showPreviewDialog() }
         binding.btnGenerate.setOnClickListener { generate() }
 
         binding.rgProtection.setOnCheckedChangeListener { _, id ->
@@ -76,6 +103,19 @@ class MainActivity : AppCompatActivity() {
         }
         binding.etPhoneWidth.addTextChangedListener(resolutionWatcher)
         binding.etPhoneHeight.addTextChangedListener(resolutionWatcher)
+        val resolutionFocusListener = View.OnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) saveCurrentResolution()
+        }
+        binding.etPhoneWidth.onFocusChangeListener = resolutionFocusListener
+        binding.etPhoneHeight.onFocusChangeListener = resolutionFocusListener
+        val resolutionEditorListener = TextView.OnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE || actionId == EditorInfo.IME_ACTION_NEXT) {
+                saveCurrentResolution()
+            }
+            false
+        }
+        binding.etPhoneWidth.setOnEditorActionListener(resolutionEditorListener)
+        binding.etPhoneHeight.setOnEditorActionListener(resolutionEditorListener)
 
         binding.cbSameColor.setOnCheckedChangeListener { _, _ ->
             updateColorSwatch()
@@ -97,15 +137,28 @@ class MainActivity : AppCompatActivity() {
 
         binding.tvColorMode.setOnClickListener { showColorDialog() }
 
+        binding.etModifyZone.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                s?.toString()?.toIntOrNull()?.let { updateGradientPercent(it) }
+            }
+        })
+        binding.etModifyZone.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                updateGradientPercent(
+                    binding.etModifyZone.text.toString().toIntOrNull() ?: gradientPercent
+                )
+            }
+        }
         binding.sbModifyZone.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                gradientPercent = progress.coerceIn(1, 100)
-                binding.tvModifyZone.text = "${gradientPercent}%"
-                binding.previewView.setFraction(gradientPercent / 100f)
+                updateGradientPercent(progress)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar) {}
             override fun onStopTrackingTouch(seekBar: SeekBar) {}
         })
+        updateGradientPercent(gradientPercent)
 
         updateColorSwatch()
     }
@@ -140,6 +193,72 @@ class MainActivity : AppCompatActivity() {
         }
         startMaskDetection()
     }
+
+    private fun showPreviewDialog() {
+        val previewBitmap = binding.previewView.copyRenderedBitmap() ?: return
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+        }
+        val imageView = ZoomableImageView(this).apply {
+            setImageBitmap(previewBitmap)
+            contentDescription = getString(R.string.preview_image_content_description)
+        }
+        root.addView(imageView, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+
+        val closeButton = ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            imageTintList = ColorStateList.valueOf(Color.WHITE)
+            background = obtainStyledAttributes(
+                intArrayOf(android.R.attr.selectableItemBackgroundBorderless)
+            ).let { attributes ->
+                val drawable = attributes.getDrawable(0)
+                attributes.recycle()
+                drawable
+            }
+            contentDescription = getString(R.string.close_preview)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setOnClickListener { dialog.dismiss() }
+        }
+        root.addView(closeButton, FrameLayout.LayoutParams(dp(48), dp(48)).apply {
+            gravity = Gravity.TOP or Gravity.END
+            topMargin = dp(12)
+            marginEnd = dp(12)
+        })
+
+        dialog.setContentView(root)
+        dialog.setOnDismissListener {
+            imageView.setImageDrawable(null)
+            if (!previewBitmap.isRecycled) previewBitmap.recycle()
+        }
+        dialog.setOnShowListener {
+            dialog.window?.apply {
+                setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundDrawable(ColorDrawable(Color.BLACK))
+                setDimAmount(0f)
+                statusBarColor = Color.BLACK
+                navigationBarColor = Color.BLACK
+                decorView.systemUiVisibility = decorView.systemUiVisibility and
+                    (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR).inv()
+            }
+        }
+        dialog.show()
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).roundToInt()
 
     private fun startMaskDetection() {
         maskJob?.cancel()
@@ -203,10 +322,56 @@ class MainActivity : AppCompatActivity() {
         binding.previewView.setFillColor2(if (same) top else bottom, same)
     }
 
+    private fun readResolution(): Resolution? {
+        val width = binding.etPhoneWidth.text.toString().trim().toIntOrNull()
+        val height = binding.etPhoneHeight.text.toString().trim().toIntOrNull()
+        if (width == null || height == null || width <= 0 || height <= 0) return null
+        return Resolution(width, height)
+    }
+
+    private fun loadInitialResolution(): Resolution {
+        val saved = Resolution(
+            preferences.getInt(LAST_WIDTH, 0),
+            preferences.getInt(LAST_HEIGHT, 0)
+        )
+        if (saved.width > 0 && saved.height > 0) return saved
+
+        val metrics = resources.displayMetrics
+        val screenWidth = metrics.widthPixels
+        val screenHeight = metrics.heightPixels
+        return if (screenWidth > 0 && screenHeight > 0) {
+            Resolution(minOf(screenWidth, screenHeight), maxOf(screenWidth, screenHeight))
+        } else {
+            Resolution(DEFAULT_PHONE_WIDTH, DEFAULT_PHONE_HEIGHT)
+        }
+    }
+
+    private fun saveCurrentResolution() {
+        readResolution()?.let { resolution ->
+            preferences.edit()
+                .putInt(LAST_WIDTH, resolution.width)
+                .putInt(LAST_HEIGHT, resolution.height)
+                .apply()
+        }
+    }
+
     private fun updatePreviewRatio() {
-        val pw = binding.etPhoneWidth.text.toString().toFloatOrNull() ?: 1216f
-        val ph = binding.etPhoneHeight.text.toString().toFloatOrNull() ?: 2640f
-        if (ph > 0) binding.previewView.setPhoneRatio(pw / ph)
+        val resolution = readResolution() ?: return
+        val ratio = resolution.width.toFloat() / resolution.height.toFloat()
+        if (ratio.isFinite() && ratio > 0f) binding.previewView.setPhoneRatio(ratio)
+    }
+
+    private fun updateGradientPercent(value: Int) {
+        val normalized = value.coerceIn(0, 100)
+        gradientPercent = normalized
+        if (binding.sbModifyZone.progress != normalized) {
+            binding.sbModifyZone.progress = normalized
+        }
+        if (binding.etModifyZone.text.toString() != normalized.toString()) {
+            binding.etModifyZone.setText(normalized.toString())
+            binding.etModifyZone.setSelection(binding.etModifyZone.text.length)
+        }
+        binding.previewView.setFraction(normalized / 100f)
     }
 
     private var sourceUri: Uri? = null
@@ -238,10 +403,20 @@ class MainActivity : AppCompatActivity() {
         }
         val detectedMask = personMask
 
+        val resolution = readResolution()
+        if (resolution == null) {
+            Toast.makeText(this, "请输入有效的手机分辨率", Toast.LENGTH_SHORT).show()
+            return
+        }
+        saveCurrentResolution()
+        updateGradientPercent(
+            binding.etModifyZone.text.toString().toIntOrNull() ?: gradientPercent
+        )
+
         // Reload at full resolution for output quality
         val bmp = sourceUri?.let { loadBitmap(it, sample = false) } ?: sourceBitmap ?: return
-        val pw = binding.etPhoneWidth.text.toString().toIntOrNull() ?: 1216
-        val ph = binding.etPhoneHeight.text.toString().toIntOrNull() ?: 2640
+        val pw = resolution.width
+        val ph = resolution.height
         updatePreviewRatio()
         val modifyPx = (bmp.height * gradientPercent / 100f).roundToInt()
 
@@ -434,6 +609,11 @@ class MainActivity : AppCompatActivity() {
         values.forEachIndexed { i, c -> r[i] = Color.red(c); g[i] = Color.green(c); b[i] = Color.blue(c) }
         r.sort(); g.sort(); b.sort(); val m = values.size / 2
         return Color.rgb(r[m], g[m], b[m])
+    }
+
+    override fun onPause() {
+        saveCurrentResolution()
+        super.onPause()
     }
 
     override fun onDestroy() {

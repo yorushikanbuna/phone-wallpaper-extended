@@ -74,7 +74,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_gravity="center"
-                android:layout_margin="3dp" />
+                android:layout_margin="3dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/preview_click_hint" />
         </FrameLayout>
 
         <!-- Bottom controls card -->
@@ -117,7 +120,6 @@
                         android:layout_weight="1"
                         android:layout_height="44dp"
                         android:inputType="number"
-                        android:text="1216"
                         android:textColor="@color/text_primary"
                         android:textColorHint="#C4BFD0"
                         android:textSize="15sp"
@@ -138,7 +140,6 @@
                         android:layout_weight="1"
                         android:layout_height="44dp"
                         android:inputType="number"
-                        android:text="2640"
                         android:textColor="@color/text_primary"
                         android:textColorHint="#C4BFD0"
                         android:textSize="15sp"
@@ -349,14 +350,28 @@
                         android:textSize="13sp"
                         android:textColor="@color/text_muted" />
 
+                    <EditText
+                        android:id="@+id/etModifyZone"
+                        android:layout_width="64dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/input_field_bg"
+                        android:gravity="center"
+                        android:imeOptions="actionDone"
+                        android:inputType="number"
+                        android:maxLength="3"
+                        android:selectAllOnFocus="true"
+                        android:text="10"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="14sp"
+                        android:fontFamily="monospace" />
+
                     <TextView
-                        android:id="@+id/tvModifyZone"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="10%"
-                        android:textSize="14sp"
-                        android:textColor="@color/accent_primary"
-                        android:fontFamily="monospace" />
+                        android:layout_marginStart="4dp"
+                        android:text="%"
+                        android:textColor="@color/text_muted"
+                        android:textSize="14sp" />
                 </LinearLayout>
 
                 <SeekBar
