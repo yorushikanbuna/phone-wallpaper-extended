@@ -66,8 +66,8 @@ object WallpaperExtender {
                 val dstIndex = outputY * w + x
                 // Pass 1: the exact same background compositing used when recognition is off.
                 var composed = composite(output[dstIndex], sourceColor, gradient)
-                if (mask != null) {
-                    // Pass 2: add only the original pixels selected by the soft person mask.
+                if (mask != null && gradient < 255) {
+                    // 只在渐变带内叠加保护蒙版，渐变带外保持普通模式结果。
                     val protect = (mask.valueAt(x, y, w, h) * foregroundFeather).roundToInt()
                     composed = composite(composed, sourceColor, protect)
                 }
