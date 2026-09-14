@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">壁纸延展</string>
+    <string name="preview_click_hint">点击预览查看大图</string>
+    <string name="preview_image_content_description">壁纸大图预览</string>
+    <string name="close_preview">关闭预览</string>
 </resources>

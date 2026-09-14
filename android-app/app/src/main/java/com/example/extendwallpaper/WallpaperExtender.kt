@@ -20,7 +20,7 @@ object WallpaperExtender {
         val targetH = (w / (phoneW.toFloat() / phoneH)).roundToInt()
         val ext = targetH - h
         if (ext <= 0) return Result(source, Color.TRANSPARENT, 0)
-        val zone = if (modifyZone > 0) modifyZone.coerceAtMost(h) else (h * 0.1f).roundToInt().coerceAtLeast(1)
+        val zone = if (modifyZone >= 0) modifyZone.coerceAtMost(h) else (h * 0.1f).roundToInt().coerceAtLeast(1)
         val topOffset = when (position) { "bottom" -> 0; "center" -> ext / 2; else -> ext }
         val halfZone = zone / 2
         var fillColor = presetFill
