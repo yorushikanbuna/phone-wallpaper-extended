@@ -5,12 +5,10 @@ import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
 
-/** Downloads the optional segmentation models once and keeps them in app-private storage. */
+/** Installs the bundled segmentation models once and keeps them in app-private storage. */
 class ModelRepository(context: Context) {
     enum class Model { REAL, ANIME }
 
@@ -19,7 +17,7 @@ class ModelRepository(context: Context) {
     private data class Spec(
         val model: Model,
         val fileName: String,
-        val url: String,
+        val assetPath: String,
         val bytes: Long,
         val sha256: String,
     )
@@ -30,14 +28,14 @@ class ModelRepository(context: Context) {
         Spec(
             Model.REAL,
             "selfie_multiclass_256x256.tflite",
-            "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite",
+            "models/selfie_multiclass_256x256.tflite",
             16_371_837L,
             "c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0",
         ),
         Spec(
             Model.ANIME,
             "isnetis.onnx",
-            "https://huggingface.co/skytnt/anime-seg/resolve/main/isnetis.onnx?download=true",
+            "models/isnetis.onnx",
             176_069_933L,
             "f15622d853e8260172812b657053460e20806f04b9e05147d49af7bed31a6e99",
         ),
@@ -61,25 +59,20 @@ class ModelRepository(context: Context) {
             val destination = File(directory, spec.fileName)
             if (destination.length() == spec.bytes && sha256(destination) == effectiveSha(spec)) continue
             if (destination.exists()) destination.delete()
-            download(spec, destination, onProgress)
+            installBundled(spec, destination, onProgress)
         }
     }
 
-    private suspend fun download(spec: Spec, destination: File, onProgress: (Progress) -> Unit) {
-        val temporary = File(destination.parentFile, "${destination.name}.download")
+    private suspend fun installBundled(
+        spec: Spec,
+        destination: File,
+        onProgress: (Progress) -> Unit,
+    ) {
+        val temporary = File(destination.parentFile, "${destination.name}.install")
         if (temporary.exists()) temporary.delete()
-        val connection = (URL(spec.url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 20_000
-            readTimeout = 60_000
-            requestMethod = "GET"
-        }
         try {
-            if (connection.responseCode !in 200..299) {
-                throw IllegalStateException("模型下载失败（HTTP ${connection.responseCode}）")
-            }
-            val total = connection.contentLengthLong.takeIf { it > 0 } ?: spec.bytes
-            var downloaded = 0L
-            connection.inputStream.use { input ->
+            var installed = 0L
+            appContext.assets.open(spec.assetPath).use { input ->
                 FileOutputStream(temporary).use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var lastReport = 0L
@@ -88,23 +81,21 @@ class ModelRepository(context: Context) {
                         val read = input.read(buffer)
                         if (read < 0) break
                         output.write(buffer, 0, read)
-                        downloaded += read
-                        if (downloaded - lastReport >= 256 * 1024 || downloaded == total) {
-                            onProgress(Progress(spec.model, downloaded, total))
-                            lastReport = downloaded
+                        installed += read
+                        if (installed - lastReport >= 256 * 1024 || installed == spec.bytes) {
+                            onProgress(Progress(spec.model, installed, spec.bytes))
+                            lastReport = installed
                         }
                     }
                 }
             }
             if (temporary.length() != spec.bytes || sha256(temporary) != effectiveSha(spec)) {
-                throw IllegalStateException("模型校验失败，请重试")
+                throw IllegalStateException("内置模型校验失败，请重新安装应用")
             }
-            if (!temporary.renameTo(destination)) throw IllegalStateException("无法保存模型文件")
+            if (!temporary.renameTo(destination)) throw IllegalStateException("无法保存内置模型")
         } catch (e: Exception) {
             temporary.delete()
             throw e
-        } finally {
-            connection.disconnect()
         }
     }
 

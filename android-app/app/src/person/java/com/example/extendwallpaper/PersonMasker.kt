@@ -45,7 +45,7 @@ class PersonMasker(context: Context) {
         repository.ensure(models) { progress ->
             val label = if (progress.model == ModelRepository.Model.REAL) "真人模型" else "二次元模型"
             val percent = (progress.downloaded * 100 / progress.total).toInt().coerceIn(0, 100)
-            onProgress("下载$label $percent%")
+            onProgress("安装$label $percent%")
         }
         val real = if (mode == ProtectionMode.REAL) {
             onProgress("正在识别真人区域…")

@@ -1,0 +1,2 @@
+android-app/app/src/person/assets/models/*.onnx filter=lfs diff=lfs merge=lfs -text
+android-app/app/src/person/assets/models/*.tflite filter=lfs diff=lfs merge=lfs -text
