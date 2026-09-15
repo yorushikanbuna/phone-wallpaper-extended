@@ -22,7 +22,8 @@ class ModelRepository(context: Context) {
         val sha256: String,
     )
 
-    private val directory = File(context.applicationContext.filesDir, "person-models").apply { mkdirs() }
+    private val appContext = context.applicationContext
+    private val directory = File(appContext.filesDir, "person-models").apply { mkdirs() }
 
     private val specs = listOf(
         Spec(
