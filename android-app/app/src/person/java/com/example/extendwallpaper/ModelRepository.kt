@@ -81,7 +81,7 @@ class ModelRepository(context: Context) {
                         val read = input.read(buffer)
                         if (read < 0) break
                         output.write(buffer, 0, read)
-                        installed += read
+                        installed += read.toLong()
                         if (installed - lastReport >= 256 * 1024 || installed == spec.bytes) {
                             onProgress(Progress(spec.model, installed, spec.bytes))
                             lastReport = installed
