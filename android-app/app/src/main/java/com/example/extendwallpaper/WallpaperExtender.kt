@@ -34,47 +34,55 @@ object WallpaperExtender {
         }
         if (fillColor2 == -1) fillColor2 = fillColor
 
-        val output = IntArray(w * targetH)
         val baseTop = if (position == "bottom") fillColor2 else fillColor
-        java.util.Arrays.fill(output, baseTop)
-        if (position == "center" && !sameColor) {
+        val output = Bitmap.createBitmap(w, targetH, Bitmap.Config.ARGB_8888)
+        try {
+            output.eraseColor(baseTop)
             val split = (topOffset + h / 2).coerceIn(0, targetH)
-            for (y in split until targetH) java.util.Arrays.fill(output, y * w, (y + 1) * w, fillColor2)
-        }
-        val sourcePixels = IntArray(w * h)
-        source.getPixels(sourcePixels, 0, w, 0, 0, w, h)
-        val mask = personMask
-        val denom = 1.0 - exp(-EXP_K)
-        for (y in 0 until h) {
-            val gradient = when (position) {
-                "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
-                "center" -> when {
-                    y < halfZone -> alphaAt(y, halfZone.coerceAtLeast(1), denom)
-                    y >= h - halfZone -> alphaAt(h - y, halfZone.coerceAtLeast(1), denom)
-                    else -> 255
+            val outputRow = IntArray(w)
+            if (position == "center" && !sameColor) {
+                java.util.Arrays.fill(outputRow, fillColor2)
+                for (y in split until targetH) output.setPixels(outputRow, 0, w, 0, y, w, 1)
+            }
+            val sourceRow = IntArray(w)
+            val mask = personMask
+            val denom = 1.0 - exp(-EXP_K)
+            for (y in 0 until h) {
+                val gradient = when (position) {
+                    "bottom" -> if (y >= h - zone) alphaAt(h - y, zone, denom) else 255
+                    "center" -> when {
+                        y < halfZone -> alphaAt(y, halfZone.coerceAtLeast(1), denom)
+                        y >= h - halfZone -> alphaAt(h - y, halfZone.coerceAtLeast(1), denom)
+                        else -> 255
+                    }
+                    else -> if (y < zone) alphaAt(y, zone, denom) else 255
                 }
-                else -> if (y < zone) alphaAt(y, zone, denom) else 255
-            }
-            val outputY = topOffset + y
-            if (outputY !in 0 until targetH) continue
-            val foregroundFeather = if (mask == null) 1f else {
-                foregroundEdgeFactor(y, h, position, zone, halfZone)
-            }
-            for (x in 0 until w) {
-                val sourceIndex = y * w + x
-                val sourceColor = sourcePixels[sourceIndex]
-                val dstIndex = outputY * w + x
-                // Pass 1: the exact same background compositing used when recognition is off.
-                var composed = composite(output[dstIndex], sourceColor, gradient)
-                if (mask != null && gradient < 255) {
-                    // 只在渐变带内叠加保护蒙版，渐变带外保持普通模式结果。
-                    val protect = (mask.valueAt(x, y, w, h) * foregroundFeather).roundToInt()
-                    composed = composite(composed, sourceColor, protect)
+                val outputY = topOffset + y
+                if (outputY !in 0 until targetH) continue
+                val rowBase = if (position == "center" && !sameColor && outputY >= split) fillColor2 else baseTop
+                java.util.Arrays.fill(outputRow, rowBase)
+                source.getPixels(sourceRow, 0, w, 0, y, w, 1)
+                val foregroundFeather = if (mask == null) 1f else {
+                    foregroundEdgeFactor(y, h, position, zone, halfZone)
                 }
-                output[dstIndex] = composed
+                for (x in 0 until w) {
+                    val sourceColor = sourceRow[x]
+                    // Pass 1: the exact same background compositing used when recognition is off.
+                    var composed = composite(outputRow[x], sourceColor, gradient)
+                    if (mask != null && gradient < 255) {
+                        // 只在渐变带内叠加保护蒙版，渐变带外保持普通模式结果。
+                        val protect = (mask.valueAt(x, y, w, h) * foregroundFeather).roundToInt()
+                        composed = composite(composed, sourceColor, protect)
+                    }
+                    outputRow[x] = composed
+                }
+                output.setPixels(outputRow, 0, w, 0, outputY, w, 1)
             }
+        } catch (e: Throwable) {
+            output.recycle()
+            throw e
         }
-        return Result(Bitmap.createBitmap(output, w, targetH, Bitmap.Config.ARGB_8888), baseTop, ext)
+        return Result(output, baseTop, ext)
     }
 
     /** Softens only the source-edge entry of the foreground layer to hide a seam. */

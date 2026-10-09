@@ -377,18 +377,33 @@ class MainActivity : AppCompatActivity() {
     private var sourceUri: Uri? = null
 
     private fun loadBitmap(uri: Uri, sample: Boolean = true): Bitmap? = try {
-        contentResolver.openInputStream(uri)?.use { stream ->
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeStream(stream, null, opts)
-            stream.close()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // ImageDecoder 会拒绝部分解码结果，避免缺失的底边像素进入壁纸。
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, uri)) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.SRGB))
+                if (sample) {
+                    val maxDim = maxOf(info.size.width, info.size.height)
+                    var sampleSize = 1
+                    while (maxDim / sampleSize > 2048) sampleSize *= 2
+                    decoder.setTargetSampleSize(sampleSize)
+                }
+            }
+        } else {
+            contentResolver.openInputStream(uri)?.use { stream ->
+                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeStream(stream, null, opts)
 
-            val maxDim = maxOf(opts.outWidth, opts.outHeight)
-            val sampleSize = if (sample && maxDim > 2048)
-                (maxDim / 2048).coerceAtMost(8) else 1
+                val maxDim = maxOf(opts.outWidth, opts.outHeight)
+                var sampleSize = 1
+                if (sample) {
+                    while (maxDim / sampleSize > 2048) sampleSize *= 2
+                }
 
-            contentResolver.openInputStream(uri)?.use { s ->
-                BitmapFactory.decodeStream(s, null,
-                    BitmapFactory.Options().apply { inSampleSize = sampleSize })
+                contentResolver.openInputStream(uri)?.use { s ->
+                    BitmapFactory.decodeStream(s, null,
+                        BitmapFactory.Options().apply { inSampleSize = sampleSize })
+                }
             }
         }
     } catch (e: Exception) {
@@ -414,7 +429,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         // Reload at full resolution for output quality
-        val bmp = sourceUri?.let { loadBitmap(it, sample = false) } ?: sourceBitmap ?: return
+        val bmp = sourceUri?.let { loadBitmap(it, sample = false) } ?: return
         val pw = resolution.width
         val ph = resolution.height
         updatePreviewRatio()

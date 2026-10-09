@@ -52,17 +52,13 @@ class PreviewView @JvmOverloads constructor(
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             return
         }
-        val imgNatH = src.height * (maxW.toFloat() / src.width)
-        val targetH = src.width.toFloat() / phoneRatio
+        val targetH = maxOf(src.height + 1f, src.width.toFloat() / phoneRatio)
         if (!targetH.isFinite()) {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             return
         }
-        val safeTargetH = targetH.coerceIn(1f, MAX_PREVIEW_HEIGHT.toFloat())
-        val extNatH = ((safeTargetH - src.height) * (maxW.toFloat() / src.width)).coerceAtLeast(0f)
-        val natH = extNatH + 2f + imgNatH
-        val scale = if (natH > maxH) maxH / natH else 1f
-        setMeasuredDimension((maxW * scale).roundToInt().coerceAtLeast(1), maxH)
+        val measuredW = minOf(maxW, (maxH.toFloat() * src.width / targetH).toInt()).coerceAtLeast(1)
+        setMeasuredDimension(measuredW, maxH)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -70,20 +66,31 @@ class PreviewView @JvmOverloads constructor(
         val src = source ?: return
         if (dirty || rendered == null) {
             if (rendered !== src) rendered?.recycle()
-            val requestedPhoneH = (src.width.toFloat() / phoneRatio)
-                .coerceIn(1f, MAX_PREVIEW_HEIGHT.toFloat())
-                .roundToInt()
-            val previewPhoneH = maxOf(src.height + 1, requestedPhoneH)
-            rendered = WallpaperExtender.extend(
-                src, src.width, previewPhoneH,
-                (src.height * fraction).roundToInt().coerceAtLeast(0),
-                position, sameColor, fillColor, fillColor2, personMask
-            ).bitmap
+            val targetH = maxOf(src.height + 1f, src.width.toFloat() / phoneRatio)
+            val scale = minOf(1f, MAX_PREVIEW_HEIGHT / targetH)
+            // 限制预览高度时同步缩小原图，保持目标壁纸的宽高比。
+            val previewSource = if (scale < 1f) Bitmap.createScaledBitmap(
+                src,
+                (src.width * scale).toInt().coerceAtLeast(1),
+                (src.height * scale).toInt().coerceAtLeast(1),
+                true
+            ) else src
+            try {
+                val previewPhoneH = (previewSource.width / phoneRatio).roundToInt()
+                    .coerceIn(previewSource.height + 1, MAX_PREVIEW_HEIGHT)
+                rendered = WallpaperExtender.extend(
+                    previewSource, previewSource.width, previewPhoneH,
+                    (previewSource.height * fraction).roundToInt().coerceAtLeast(0),
+                    position, sameColor, fillColor, fillColor2, personMask
+                ).bitmap
+            } finally {
+                if (previewSource !== src && previewSource !== rendered) previewSource.recycle()
+            }
             dirty = false
         }
         val bitmap = rendered ?: return
         val drawW = width
-        val drawH = (bitmap.height * drawW.toFloat() / bitmap.width).roundToInt()
+        val drawH = minOf(height, (bitmap.height * drawW.toFloat() / bitmap.width).roundToInt())
         val top = ((height - drawH) / 2).coerceAtLeast(0)
         canvas.drawBitmap(bitmap, null, Rect(0, top, drawW, top + drawH), paint)
     }

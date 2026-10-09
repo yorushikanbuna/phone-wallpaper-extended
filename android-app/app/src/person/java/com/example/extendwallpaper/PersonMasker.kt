@@ -75,18 +75,31 @@ class PersonMasker(context: Context) {
                 .build()
             val segmenter = ImageSegmenter.createFromOptions(appContext, options)
             try {
-                val result = segmenter.segment(BitmapImageBuilder(bitmap).build())
+                // 模型内部输入较小，限制分割输入尺寸以控制全尺寸置信度蒙版的内存占用。
+                val scale = minOf(1f, 1024f / maxOf(bitmap.width, bitmap.height))
+                val inputBitmap = if (scale < 1f) Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * scale).roundToInt().coerceAtLeast(1),
+                    (bitmap.height * scale).roundToInt().coerceAtLeast(1),
+                    true
+                ) else bitmap
+                val result = try {
+                    segmenter.segment(BitmapImageBuilder(inputBitmap).build())
+                } finally {
+                    if (inputBitmap !== bitmap) inputBitmap.recycle()
+                }
                 val masks = result.confidenceMasks().orElseThrow { IllegalStateException("真人分割没有返回置信度蒙版") }
                 if (masks.isEmpty()) throw IllegalStateException("真人分割没有返回置信度蒙版")
                 val maskWidth = masks.first().width
                 val maskHeight = masks.first().height
                 val pixelCount = maskWidth * maskHeight
+                // 蒙版与输入图同尺寸，直接读取缓冲区，避免复制多份全尺寸浮点数组。
                 val confidence = (0 until masks.size).map { index ->
                     val buffer = ByteBufferExtractor.extract(masks[index])
                         .order(ByteOrder.nativeOrder())
                         .asFloatBuffer()
                     buffer.rewind()
-                    FloatArray(pixelCount).also { buffer.get(it) }
+                    buffer
                 }
                 val alpha = ByteArray(pixelCount)
                 for (i in alpha.indices) {
@@ -94,11 +107,11 @@ class PersonMasker(context: Context) {
                     val foreground = if (confidence.size >= 5) {
                         var best = 0f
                         for (category in 1 until minOf(confidence.size, 5)) {
-                            best = maxOf(best, confidence[category][i])
+                            best = maxOf(best, confidence[category].get(i))
                         }
                         best
                     } else {
-                        (1f - confidence[0][i]).coerceIn(0f, 1f)
+                        (1f - confidence[0].get(i)).coerceIn(0f, 1f)
                     }
                     alpha[i] = confidenceToAlpha(foreground, low = 0.15f, high = 0.6f)
                 }
